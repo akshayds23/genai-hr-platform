@@ -1,0 +1,23 @@
+# Copy to config.yaml (git-ignored). Values in ${...} are read from environment variables / backend/.env.
+database:
+  url: ${DATABASE_URL}
+
+gemini:
+  api_key: ${GEMINI_API_KEY}
+  embedding_model: text-embedding-004
+  generation_model: gemini-2.0-flash
+
+default_users:
+  hr:
+    email: ${DEFAULT_HR_EMAIL}
+    password: ${DEFAULT_HR_PASSWORD}
+  manager:
+    email: ${DEFAULT_MANAGER_EMAIL}
+    password: ${DEFAULT_MANAGER_PASSWORD}
+  employee:
+    email: ${DEFAULT_EMPLOYEE_EMAIL}
+    password: ${DEFAULT_EMPLOYEE_PASSWORD}
+
+scheduler:
+  timezone: Asia/Kolkata
+  offboarding_reminders_cron: "0 9 * * *"

@@ -1,0 +1,1955 @@
+openapi: 3.0.0
+info:
+  title: HRM Backend API
+  version: 1.0.0
+  description: |
+    **Human Resource Management System Backend API**
+    A comprehensive REST API for managing HR operations including employee management, leave tracking, 
+    performance monitoring, offboarding workflows, and administrative tasks. This API serves as the 
+    backend for a full-featured HRM system supporting multiple user roles (Employee, Admin, Super Admin/HR).
+    **Key Features:**
+    - Employee self-service portal
+    - Leave management and approval workflows  
+    - HR chatbot and FAQ system
+    - Resume management and candidate matching
+    - Offboarding automation
+    - Birthday tracking and event management
+    - Notification and announcement system
+    - Analytics and reporting
+
+servers:
+  - url: http://127.0.0.1:5000
+    description: Local development server (Flask backend)
+  - url: http://localhost:5000
+    description: Local development server (alternative)
+
+paths:
+  /admin/available-managers:
+    get:
+      tags:
+        - Teams
+      operationId: teams_get_available_managers
+      summary: Get available managers
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      responses:
+        "200":
+          description: Successful response
+  /admin/departments:
+    get:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_list_departments
+      summary: List departments
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/employees/search:
+    get:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_search_employees
+      summary: Search employees
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/faqs:
+    get:
+      tags:
+        - Faq Management
+      operationId: faq_management_list_faqs
+      summary: List faqs
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+    post:
+      tags:
+        - Faq Management
+      operationId: faq_management_create_faq
+      summary: Create faq
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/faqs/bulk-delete:
+    post:
+      tags:
+        - Faq Management
+      operationId: faq_management_bulk_delete_faqs
+      summary: Bulk delete faqs
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/faqs/upload:
+    post:
+      tags:
+        - Faq Management
+      operationId: faq_management_upload_faq_file
+      summary: Upload faq file
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/faqs/{faq_id}:
+    delete:
+      tags:
+        - Faq Management
+      operationId: faq_management_delete_faq
+      summary: Delete faq
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: faq_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - Faq Management
+      operationId: faq_management_update_faq
+      summary: Update faq
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: faq_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/hr/questions:
+    get:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_list_escalated_questions
+      summary: List escalated questions
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/hr/questions/{question_id}/answer:
+    post:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_answer_escalated_question
+      summary: Answer escalated question
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: question_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/leaves:
+    get:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_list_manager_leaves
+      summary: List manager leaves
+      description: |
+        **User Story:** As a manager, I want to review and approve or reject team leave requests with remarks so that I can manage team availability effectively.
+        This endpoint supports the manager leave approval workflow.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/leaves/{leave_id}/approve:
+    post:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_approve_leave
+      summary: Approve leave
+      description: |
+        **User Story:** As a manager, I want to review and approve or reject team leave requests with remarks so that I can manage team availability effectively.
+        This endpoint supports the manager leave approval workflow.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: leave_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/leaves/{leave_id}/reject:
+    post:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_reject_leave
+      summary: Reject leave
+      description: |
+        **User Story:** As a manager, I want to review and approve or reject team leave requests with remarks so that I can manage team availability effectively.
+        This endpoint supports the manager leave approval workflow.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: leave_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/resumes/summary:
+    get:
+      tags:
+        - Admin Portal
+      operationId: admin_portal_resume_summary
+      summary: Resume summary
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /admin/teams:
+    get:
+      tags:
+        - Teams
+      operationId: teams_get_teams
+      summary: Get teams
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      responses:
+        "200":
+          description: Successful response
+    post:
+      tags:
+        - Teams
+      operationId: teams_create_team
+      summary: Create team
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      responses:
+        "200":
+          description: Successful response
+  /admin/teams/{team_id}:
+    delete:
+      tags:
+        - Teams
+      operationId: teams_delete_team
+      summary: Delete team
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - Teams
+      operationId: teams_update_team
+      summary: Update team
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/teams/{team_id}/members:
+    get:
+      tags:
+        - Teams
+      operationId: teams_get_team_members
+      summary: Get team members
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    post:
+      tags:
+        - Teams
+      operationId: teams_add_team_member
+      summary: Add team member
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/teams/{team_id}/members/{user_id}:
+    delete:
+      tags:
+        - Teams
+      operationId: teams_remove_team_member
+      summary: Remove team member
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/teams/{team_id}/unassign-manager:
+    post:
+      tags:
+        - Teams
+      operationId: teams_unassign_team_manager
+      summary: Unassign team manager
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: team_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      operationId: admin_get_all_users
+      summary: Get all users
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      responses:
+        "200":
+          description: Successful response
+  /admin/users/{user_id}:
+    delete:
+      tags:
+        - Admin
+      operationId: admin_delete_user
+      summary: Delete user
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - Admin
+      operationId: admin_update_user
+      summary: Update user
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+        - manager
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /api/admin/users/{user_id}/resume:
+    get:
+      tags:
+        - Authentication
+      operationId: authentication_admin_download_user_resume
+      summary: Admin download user resume
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /api/login:
+    post:
+      tags:
+        - Authentication
+      operationId: authentication_login
+      summary: Login 
+      description: |
+        **User Story:** As a user, I want to securely log in to the HR system so that I can access my personalized dashboards and services.
+        This endpoint implements the authentication entry point.
+        This operation is part of the HRM backend API.
+      responses:
+        "200":
+          description: Successful response
+  /api/logout:
+    post:
+      tags:
+        - Authentication
+      operationId: authentication_logout
+      summary: Logout 
+      description: |
+        **User Story:** As a user, I want to log out securely so that my account cannot be accessed from my device after I am done.
+        This endpoint terminates the authenticated session/token.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /api/me:
+    get:
+      tags:
+        - Authentication
+      operationId: authentication_get_current_user
+      summary: Get current user
+      description: |
+        **User Story:** As a user, I want secure authentication and identity management so that only authorized users can access HR services.
+        This endpoint is part of the authentication module.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - Authentication
+      operationId: authentication_update_current_user_profile
+      summary: Update current user profile
+      description: |
+        **User Story:** As a user, I want secure authentication and identity management so that only authorized users can access HR services.
+        This endpoint is part of the authentication module.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /api/me/resume:
+    get:
+      tags:
+        - Authentication
+      operationId: authentication_download_my_resume
+      summary: Download my resume
+      description: |
+        **User Story:** As a user, I want secure authentication and identity management so that only authorized users can access HR services.
+        This endpoint is part of the authentication module.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+    post:
+      tags:
+        - Authentication
+      operationId: authentication_upload_my_resume
+      summary: Upload my resume
+      description: |
+        **User Story:** As a user, I want secure authentication and identity management so that only authorized users can access HR services.
+        This endpoint is part of the authentication module.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /api/register:
+    post:
+      tags:
+        - Authentication
+      operationId: authentication_register
+      summary: Register 
+      description: |
+        **User Story:** As a user, I want secure authentication and identity management so that only authorized users can access HR services.
+        This endpoint is part of the authentication module.
+        This operation is part of the HRM backend API.
+      responses:
+        "200":
+          description: Successful response
+  /auth/signup/hr:
+    post:
+      tags:
+        - Hr Signup
+      operationId: hr_signup_signup_hr
+      summary: Signup hr
+      description: |
+        **User Story:** As a user, I want secure authentication and identity management so that only authorized users can access HR services.
+        This endpoint is part of the authentication module.
+        This operation is part of the HRM backend API.
+      responses:
+        "200":
+          description: Successful response
+  /birthday-tracker:
+    get:
+      tags:
+        - B Birthday Tracker
+      operationId: b_birthday_tracker_birthday_tracker
+      summary: Birthday tracker
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /employee/chatbot:
+    post:
+      tags:
+        - B Employee Dashboard
+      operationId: b_employee_dashboard_interact_with_chatbot
+      summary: Interact with chatbot
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /employee/chatbot/escalate:
+    post:
+      tags:
+        - B Employee Dashboard
+      operationId: b_employee_dashboard_escalate_chatbot_question
+      summary: Escalate chatbot question
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /employee/dashboard:
+    get:
+      tags:
+        - B Employee Dashboard
+      operationId: b_employee_dashboard_get_employee_dashboard
+      summary: Get employee dashboard
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /employee/feedback:
+    post:
+      tags:
+        - B Employee Dashboard
+      operationId: b_employee_dashboard_submit_dashboard_feedback
+      summary: Submit dashboard feedback
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /employee/project-announcement:
+    get:
+      tags:
+        - B Employee Dashboard
+      operationId: b_employee_dashboard_get_employee_project_announcement
+      summary: Get employee project announcement
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /feedback/all:
+    get:
+      tags:
+        - B Feedback
+      operationId: b_feedback_get_all_feedbacks
+      summary: Get all feedbacks
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /feedback/categories:
+    get:
+      tags:
+        - B Feedback
+      operationId: b_feedback_get_feedback_categories
+      summary: Get feedback categories
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /feedback/stats:
+    get:
+      tags:
+        - B Feedback
+      operationId: b_feedback_get_feedback_stats
+      summary: Get feedback stats
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /feedback/submit:
+    post:
+      tags:
+        - B Feedback
+      operationId: b_feedback_submit_feedback
+      summary: Submit feedback
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /feedback/{feedback_id}/mark-read:
+    put:
+      tags:
+        - B Feedback
+      operationId: b_feedback_mark_feedback_read
+      summary: Mark feedback read
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: feedback_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /genai/careerpath:
+    post:
+      tags:
+        - B Careerpath
+      operationId: b_careerpath_generate_careerpath
+      summary: Generate careerpath
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /genai/careerpath/pdf:
+    post:
+      tags:
+        - B Careerpath
+      operationId: b_careerpath_careerpath_pdf
+      summary: Careerpath pdf
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /genai/chat:
+    post:
+      tags:
+        - B Hrchatbot
+      operationId: b_hrchatbot_chat
+      summary: Chat 
+      description: |
+        **User Story:** As HR, I want a centralized dashboard for employee, leave, and resume management so that I can move away from fragmented manual processes.
+        This endpoint contributes to the HR (super admin) dashboard capabilities.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /genai/chat/knowledge:
+    get:
+      tags:
+        - B Hrchatbot
+      operationId: b_hrchatbot_get_knowledge_base
+      summary: Get knowledge base
+      description: |
+        **User Story:** As HR, I want a centralized dashboard for employee, leave, and resume management so that I can move away from fragmented manual processes.
+        This endpoint contributes to the HR (super admin) dashboard capabilities.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /genai/debug:
+    get:
+      tags:
+        - B Careerpath
+      operationId: b_careerpath_career_debug
+      summary: Career debug
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      responses:
+        "200":
+          description: Successful response
+  /genai/jd/generate:
+    post:
+      tags:
+        - B Jdmaker
+      operationId: b_jdmaker_generate_jd
+      summary: Generate jd
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /genai/jd/pdf:
+    post:
+      tags:
+        - B Jdmaker
+      operationId: b_jdmaker_download_jd_pdf
+      summary: Download jd pdf
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /genai/jd/save:
+    post:
+      tags:
+        - B Jdmaker
+      operationId: b_jdmaker_save_jd
+      summary: Save jd
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/analytics/applicants-gender:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_applicants_by_gender
+      summary: Get applicants by gender
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/analytics/applicants-source:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_applicants_by_source
+      summary: Get applicants by source
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/analytics/applicants-status:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_applicants_by_status
+      summary: Get applicants by status
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/analytics/overview:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_analytics_overview
+      summary: Get analytics overview
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/jd:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_all_job_descriptions
+      summary: Get all job descriptions
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/jd/generate_removed:
+    post:
+      tags:
+        - B Hr
+      operationId: b_hr_generate_job_description_removed
+      summary: Generate job description removed
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/jd/match:
+    post:
+      tags:
+        - B Hr
+      operationId: b_hr_match_candidates_to_jd
+      summary: Match candidates to jd
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/jd/upload_removed:
+    post:
+      tags:
+        - B Hr
+      operationId: b_hr_upload_job_description_removed
+      summary: Upload job description removed
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/questions:
+    get:
+      tags:
+        - B Hrchatbot
+      operationId: b_hrchatbot_list_hr_questions
+      summary: List hr questions
+      description: |
+        **User Story:** As HR, I want a centralized dashboard for employee, leave, and resume management so that I can move away from fragmented manual processes.
+        This endpoint contributes to the HR (super admin) dashboard capabilities.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/questions/{question_id}/answer:
+    post:
+      tags:
+        - B Hrchatbot
+      operationId: b_hrchatbot_resolve_hr_question
+      summary: Resolve hr question
+      description: |
+        **User Story:** As HR, I want a centralized dashboard for employee, leave, and resume management so that I can move away from fragmented manual processes.
+        This endpoint contributes to the HR (super admin) dashboard capabilities.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: question_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /hr/resume/bulk-upload:
+    post:
+      tags:
+        - B Hr
+      operationId: b_hr_bulk_upload_resumes
+      summary: Bulk upload resumes
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/resume/summarize/{resume_id}:
+    post:
+      tags:
+        - B Hr
+      operationId: b_hr_summarize_resume
+      summary: Summarize resume
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: resume_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /hr/resume/upload:
+    post:
+      tags:
+        - B Hr
+      operationId: b_hr_upload_resume
+      summary: Upload resume
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/resume/{resume_id}:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_resume
+      summary: Get resume
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: resume_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /hr/resume/{resume_id}/status:
+    put:
+      tags:
+        - B Hr
+      operationId: b_hr_update_resume_status
+      summary: Update resume status
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: resume_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /hr/resumes:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_all_resumes
+      summary: Get all resumes
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /hr/teams:
+    get:
+      tags:
+        - B Hr
+      operationId: b_hr_get_all_teams
+      summary: Get all teams
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /leave/apply:
+    post:
+      tags:
+        - B Leave
+      operationId: b_leave_apply_for_leave
+      summary: Apply for leave
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /leave/mine:
+    get:
+      tags:
+        - B Leave
+      operationId: b_leave_get_my_leaves
+      summary: Get my leaves
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /leave/summary:
+    get:
+      tags:
+        - B Leave
+      operationId: b_leave_leave_summary
+      summary: Leave summary
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /leave/team/requests:
+    get:
+      tags:
+        - B Leave
+      operationId: b_leave_get_team_leave_requests
+      summary: Get team leave requests
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /leave/{leave_id}:
+    get:
+      tags:
+        - B Leave
+      operationId: b_leave_get_leave_detail
+      summary: Get leave detail
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: leave_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /leave/{leave_id}/cancel:
+    post:
+      tags:
+        - B Leave
+      operationId: b_leave_cancel_my_leave
+      summary: Cancel my leave
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: leave_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /leave/{leave_id}/status:
+    patch:
+      tags:
+        - B Leave
+      operationId: b_leave_update_leave_status
+      summary: Update leave status
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: leave_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /letters/generate:
+    post:
+      tags:
+        - Letters
+      operationId: letters_generate_letter
+      summary: Generate letter
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /letters/templates:
+    get:
+      tags:
+        - Letters
+      operationId: letters_list_templates
+      summary: List templates
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+    post:
+      tags:
+        - Letters
+      operationId: letters_create_template
+      summary: Create template
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /letters/templates/{template_id}:
+    delete:
+      tags:
+        - Letters
+      operationId: letters_delete_template
+      summary: Delete template
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    patch:
+      tags:
+        - Letters
+      operationId: letters_update_template
+      summary: Update template
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - Letters
+      operationId: letters_update_template
+      summary: Update template
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: template_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /letters/{letter_id}/download:
+    get:
+      tags:
+        - Letters
+      operationId: letters_download_letter
+      summary: Download letter
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /manager/dashboard:
+    get:
+      tags:
+        - B Manager Dashboard
+      operationId: b_manager_dashboard_manager_dashboard
+      summary: Manager dashboard
+      description: |
+        **User Story:** As a manager, I want a centralized dashboard of team information and actions so that I can reduce manual tracking and administrative effort.
+        This endpoint is part of the manager/admin dashboard feature set.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /manager/debug-team:
+    get:
+      tags:
+        - B Manager Dashboard
+      operationId: b_manager_dashboard_debug_team_info
+      summary: Debug team info
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /manager/project-announcement:
+    delete:
+      tags:
+        - B Manager Dashboard
+      operationId: b_manager_dashboard_manage_project_announcement
+      summary: Manage project announcement
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+    get:
+      tags:
+        - B Manager Dashboard
+      operationId: b_manager_dashboard_manage_project_announcement
+      summary: Manage project announcement
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - B Manager Dashboard
+      operationId: b_manager_dashboard_manage_project_announcement
+      summary: Manage project announcement
+      description: |
+        **User Story:** As a manager, I want to view my team and project details so that I can coordinate workloads and track responsibilities.
+        This endpoint feeds data into the manager dashboard views.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /notifications:
+    get:
+      tags:
+        - B Notification
+      operationId: b_notification_list_notifications
+      summary: List notifications
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /notifications/leave-analytics:
+    get:
+      tags:
+        - B Notification
+      operationId: b_notification_leave_analytics
+      summary: Leave analytics
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /notifications/{notification_id}/read:
+    post:
+      tags:
+        - B Notification
+      operationId: b_notification_mark_notification
+      summary: Mark notification
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/generate-letter:
+    post:
+      tags:
+        - Offboarding
+      operationId: offboarding_generate_letter
+      summary: Generate letter
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/letters:
+    get:
+      tags:
+        - Offboarding
+      operationId: offboarding_list_generated_letters
+      summary: List generated letters
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/letters/{letter_id}:
+    get:
+      tags:
+        - Offboarding
+      operationId: offboarding_get_generated_letter
+      summary: Get generated letter
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/letters/{letter_id}/download:
+    get:
+      tags:
+        - Offboarding
+      operationId: offboarding_download_generated_letter
+      summary: Download generated letter
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: letter_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/report:
+    get:
+      tags:
+        - Offboarding
+      operationId: offboarding_offboarding_report
+      summary: Offboarding report
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/resign:
+    post:
+      tags:
+        - Offboarding
+      operationId: offboarding_submit_resignation
+      summary: Submit resignation
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/run-reminders:
+    post:
+      tags:
+        - Offboarding
+      operationId: offboarding_run_offboarding_reminders
+      summary: Run offboarding reminders
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/tasks:
+    get:
+      tags:
+        - Offboarding
+      operationId: offboarding_list_offboarding_tasks
+      summary: List offboarding tasks
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/tasks/{task_id}:
+    patch:
+      tags:
+        - Offboarding
+      operationId: offboarding_update_offboarding_task
+      summary: Update offboarding task
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /offboarding/tasks/{task_id}/reopen:
+    post:
+      tags:
+        - Offboarding
+      operationId: offboarding_reopen_offboarding_task
+      summary: Reopen offboarding task
+      description: |
+        **User Story:** As HR, I want the offboarding workflow to be automated once an employee resigns so that tasks are clearly assigned and tracked across departments.
+        This endpoint is part of the offboarding automation system.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+  /super-admin/departments:
+    get:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_list_departments
+      summary: List departments
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /super-admin/roles:
+    get:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_list_roles
+      summary: List roles
+      description: |
+        **User Story:** As a system user, I want this capability to be available via an API so that it can be integrated with the HR dashboards and workflows.
+        This endpoint is auto-documented from the backend implementation.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /super-admin/users:
+    get:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_list_users
+      summary: List users
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+    post:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_create_user
+      summary: Create user
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      responses:
+        "200":
+          description: Successful response
+  /super-admin/users/{user_id}:
+    delete:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_delete_user
+      summary: Delete user
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    get:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_get_user
+      summary: Get user
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+    put:
+      tags:
+        - Super Admin Users
+      operationId: super_admin_users_update_user
+      summary: Update user
+      description: |
+        **User Story:** As an employee, I want a unified dashboard to access my HR information so that I can manage my work-life tasks without repeatedly contacting HR.
+        This endpoint contributes to the employee self-service experience.
+        This operation is part of the HRM backend API.
+      security:
+        - TokenAuth: []
+      x-roles:
+        - hr
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successful response
+components:
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Authentication-Token
+      description: Token-based auth (Flask-Security).

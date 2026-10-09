@@ -1,0 +1,2137 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "HRM Backend API",
+    "version": "1.0.0",
+    "description": "**Human Resource Management System Backend API**\n\nA comprehensive REST API for managing HR operations including employee management, leave tracking, \nperformance monitoring, offboarding workflows, and administrative tasks. This API serves as the \nbackend for a full-featured HRM system supporting multiple user roles (Employee, Manager, HR).\n\n**Authentication:** All endpoints (except login, register, and debug) require Bearer token authentication.\nObtain a token by calling the `/api/login` endpoint.\n\n**Key Features:**\n- Employee self-service portal\n- Leave management and approval workflows  \n- HR chatbot and FAQ system\n- Resume management and candidate matching\n- Offboarding automation\n- Birthday tracking and event management\n- Notification and announcement system\n- Analytics and reporting\n",
+    "contact": {
+      "name": "HRM Development Team",
+      "url": "https://github.com/Rishurajgautam24/soft-engg-project-sep-2025-se-SEP-24"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local development server (Flask backend)"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "User login",
+        "description": "Authenticate user and return access token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password",
+                  "role"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "description": "Username or email"
+                  },
+                  "email": {
+                    "type": "string",
+                    "description": "Email (alternative to username)"
+                  },
+                  "identifier": {
+                    "type": "string",
+                    "description": "Username or email (alternative field name)"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "employee",
+                      "manager",
+                      "hr"
+                    ],
+                    "description": "Role to login as"
+                  }
+                }
+              },
+              "example": {
+                "username": "john.doe",
+                "password": "password123",
+                "role": "employee"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Login successful"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    },
+                    "token": {
+                      "type": "string",
+                      "example": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                    },
+                    "selected_role": {
+                      "type": "string",
+                      "example": "employee"
+                    },
+                    "requested_role": {
+                      "type": "string",
+                      "example": "employee"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Missing required fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Email/username and password required"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Invalid credentials"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Current account does not exist."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logout": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "User logout",
+        "description": "Logout current user",
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Logout successful"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/register": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "User registration",
+        "description": "Register new user account",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "job_title": {
+                    "type": "string"
+                  },
+                  "department": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "username": "jane.doe",
+                "email": "jane.doe@example.com",
+                "password": "password123",
+                "first_name": "Jane",
+                "last_name": "Doe"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "User registered successfully"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid input or user exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get current user profile",
+        "description": "Get current authenticated user details",
+        "responses": {
+          "200": {
+            "description": "Current user profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Update current user profile",
+        "description": "Update current authenticated user profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "organization": {
+                    "type": "string"
+                  },
+                  "job_title": {
+                    "type": "string"
+                  },
+                  "department": {
+                    "type": "string"
+                  },
+                  "team_number": {
+                    "type": "string"
+                  },
+                  "employee_id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Profile updated successfully"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get all users",
+        "description": "Get list of all users (requires admin or super_admin role)",
+        "responses": {
+          "200": {
+            "description": "List of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Update user",
+        "description": "Update user details (requires admin or super_admin role)",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  },
+                  "first_name": {
+                    "type": "string"
+                  },
+                  "last_name": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "organization": {
+                    "type": "string"
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "final_day": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "User updated successfully"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Only super admins can assign super_admin role"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Delete user",
+        "description": "Delete user (requires super_admin role)",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "User deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Cannot delete your own account"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leave/apply": {
+      "post": {
+        "tags": [
+          "Leave Management"
+        ],
+        "summary": "Apply for leave",
+        "description": "Submit a new leave request",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "start_date",
+                  "end_date",
+                  "leave_type",
+                  "reason"
+                ],
+                "properties": {
+                  "start_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "leave_type": {
+                    "type": "string",
+                    "enum": [
+                      "annual",
+                      "sick",
+                      "personal",
+                      "emergency"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "start_date": "2024-01-15",
+                "end_date": "2024-01-17",
+                "leave_type": "annual",
+                "reason": "Family vacation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Leave request submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Leave request submitted"
+                    },
+                    "leave": {
+                      "$ref": "#/components/schemas/LeaveRequest"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leave/mine": {
+      "get": {
+        "tags": [
+          "Leave Management"
+        ],
+        "summary": "Get my leave requests",
+        "description": "Get current user's leave requests",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "cancelled"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User's leave requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaves": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaveRequest"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leave/{leave_id}/cancel": {
+      "post": {
+        "tags": [
+          "Leave Management"
+        ],
+        "summary": "Cancel leave request",
+        "description": "Cancel a leave request",
+        "parameters": [
+          {
+            "name": "leave_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leave request cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Leave request cancelled"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get notifications",
+        "description": "Get user notifications",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "unread_only",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/{notification_id}/read": {
+      "post": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Mark notification as read",
+        "description": "Mark a notification as read",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marked as read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notification": {
+                      "$ref": "#/components/schemas/Notification"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/submit": {
+      "post": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Submit anonymous feedback",
+        "description": "Submit anonymous feedback",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "category",
+                  "message"
+                ],
+                "properties": {
+                  "category": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Feedback submitted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hr/questions": {
+      "get": {
+        "tags": [
+          "HR Management"
+        ],
+        "summary": "Get HR questions",
+        "description": "Get list of HR questions for review",
+        "responses": {
+          "200": {
+            "description": "List of HR questions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "questions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employee/dashboard": {
+      "get": {
+        "tags": [
+          "Employee Dashboard"
+        ],
+        "summary": "Get employee dashboard data",
+        "description": "Get comprehensive dashboard data for authenticated employee",
+        "responses": {
+          "200": {
+            "description": "Employee dashboard data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/EmployeeProfile"
+                    },
+                    "team_overview": {
+                      "type": "object"
+                    },
+                    "project_assignments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "stats": {
+                      "type": "object"
+                    },
+                    "leave_summary": {
+                      "type": "object"
+                    },
+                    "recent_leaves": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaveRequest"
+                      }
+                    },
+                    "upcoming_events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "quick_actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      }
+                    },
+                    "chatbot": {
+                      "type": "object"
+                    },
+                    "career": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employee/chatbot": {
+      "post": {
+        "tags": [
+          "Employee Dashboard"
+        ],
+        "summary": "Interact with HR chatbot",
+        "description": "Send message to HR chatbot and get response",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "example": "What is the leave policy?"
+                  },
+                  "conversation_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chatbot response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "response": {
+                      "type": "string",
+                      "example": "Employees can avail 20 annual leaves per year..."
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "auto_answered"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "conversation_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employee/chatbot/escalate": {
+      "post": {
+        "tags": [
+          "Employee Dashboard"
+        ],
+        "summary": "Escalate chatbot question to HR",
+        "description": "Escalate unresolved chatbot question to HR team",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "question"
+                ],
+                "properties": {
+                  "question": {
+                    "type": "string"
+                  },
+                  "question_log_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Question escalated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Question escalated to HR"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/employee/feedback": {
+      "post": {
+        "tags": [
+          "Employee Dashboard"
+        ],
+        "summary": "Submit feedback from dashboard",
+        "description": "Submit feedback directly from employee dashboard",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "subject": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "rating": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Feedback submitted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/manager/dashboard": {
+      "get": {
+        "tags": [
+          "Manager Dashboard"
+        ],
+        "summary": "Get manager dashboard data",
+        "description": "Get comprehensive dashboard data for managers",
+        "responses": {
+          "200": {
+            "description": "Manager dashboard data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/EmployeeProfile"
+                    },
+                    "stats": {
+                      "type": "object"
+                    },
+                    "leave_summary": {
+                      "type": "object"
+                    },
+                    "leave_analytics": {
+                      "type": "object"
+                    },
+                    "team_overview": {
+                      "type": "object"
+                    },
+                    "pending_team_leaves": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaveRequest"
+                      }
+                    },
+                    "team_offboarding": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "upcoming_events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "notifications": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Notification"
+                      }
+                    },
+                    "chatbot": {
+                      "type": "object"
+                    },
+                    "resignation": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/genai/careerpath": {
+      "post": {
+        "tags": [
+          "Career & AI"
+        ],
+        "summary": "Generate career path guidance",
+        "description": "Generate personalized career path recommendations using AI",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "current_role",
+                  "target_role"
+                ],
+                "properties": {
+                  "current_role": {
+                    "type": "string",
+                    "example": "Software Engineer"
+                  },
+                  "target_role": {
+                    "type": "string",
+                    "example": "Senior Software Engineer"
+                  },
+                  "strengths": {
+                    "type": "string"
+                  },
+                  "focus_areas": {
+                    "type": "string"
+                  },
+                  "learning_style": {
+                    "type": "string",
+                    "enum": [
+                      "online",
+                      "classroom",
+                      "hands-on",
+                      "mentorship"
+                    ]
+                  },
+                  "timeline": {
+                    "type": "string",
+                    "enum": [
+                      "3-6",
+                      "6-12",
+                      "12-18",
+                      "18-24"
+                    ]
+                  },
+                  "guidance_goal": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Career path generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "career_plan": {
+                      "type": "string"
+                    },
+                    "pdf_endpoint": {
+                      "type": "string",
+                      "example": "/api/genai/careerpath/pdf"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/genai/careerpath/pdf": {
+      "post": {
+        "tags": [
+          "Career & AI"
+        ],
+        "summary": "Generate career path PDF",
+        "description": "Generate PDF version of career path plan",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "career_plan": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PDF generated",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hr/resumes": {
+      "get": {
+        "tags": [
+          "HR Management"
+        ],
+        "summary": "Get all resumes",
+        "description": "Get list of uploaded resumes with filtering and pagination",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "reviewed",
+                "shortlisted",
+                "interviewed",
+                "rejected"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of resumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resumes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "page": {
+                      "type": "integer"
+                    },
+                    "pages": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/letters/templates": {
+      "get": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Get letter templates",
+        "description": "Get available letter templates",
+        "responses": {
+          "200": {
+            "description": "List of templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LetterTemplate"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/letters/generate": {
+      "post": {
+        "tags": [
+          "Letters"
+        ],
+        "summary": "Generate letter",
+        "description": "Generate a letter from template",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "template_id"
+                ],
+                "properties": {
+                  "template_id": {
+                    "type": "integer"
+                  },
+                  "user_id": {
+                    "type": "integer"
+                  },
+                  "variables": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Letter generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Letter generated"
+                    },
+                    "letter": {
+                      "$ref": "#/components/schemas/GeneratedLetter"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leave/team/requests": {
+      "get": {
+        "tags": [
+          "Leave Management"
+        ],
+        "summary": "Get team leave requests",
+        "description": "Get leave requests for team members (manager access)",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Team leave requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaves": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaveRequest"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leave/{leave_id}/status": {
+      "patch": {
+        "tags": [
+          "Leave Management"
+        ],
+        "summary": "Update leave status",
+        "description": "Approve or reject leave request (manager/admin access)",
+        "parameters": [
+          {
+            "name": "leave_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "approved",
+                      "rejected"
+                    ]
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Leave status updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Leave request approved"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/birthday-tracker": {
+      "get": {
+        "tags": [
+          "Birthday Tracker"
+        ],
+        "summary": "Get birthday information",
+        "description": "Get upcoming birthdays for team or organization",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "self",
+                "team",
+                "organization"
+              ],
+              "default": "team"
+            },
+            "description": "Scope of birthday search"
+          },
+          {
+            "name": "team_number",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Team number for team scope"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 120
+            },
+            "description": "Number of days to look ahead"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Birthday information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string",
+                      "example": "team"
+                    },
+                    "team_number": {
+                      "type": "string",
+                      "example": "ENG-001"
+                    },
+                    "window_days": {
+                      "type": "integer",
+                      "example": 30
+                    },
+                    "today": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BirthdayEntry"
+                      }
+                    },
+                    "upcoming": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BirthdayEntry"
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "total_upcoming": {
+                          "type": "integer"
+                        },
+                        "birthdays_today": {
+                          "type": "integer"
+                        },
+                        "within_7_days": {
+                          "type": "integer"
+                        },
+                        "within_30_days": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/all": {
+      "get": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Get all feedback (HR only)",
+        "description": "Get all submitted feedback for HR review",
+        "responses": {
+          "200": {
+            "description": "List of feedback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "feedbacks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback/stats": {
+      "get": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Get feedback statistics",
+        "description": "Get feedback statistics for HR dashboard",
+        "responses": {
+          "200": {
+            "description": "Feedback statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer"
+                    },
+                    "unread": {
+                      "type": "integer"
+                    },
+                    "by_category": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/offboarding/resign": {
+      "post": {
+        "tags": [
+          "Offboarding"
+        ],
+        "summary": "Submit resignation",
+        "description": "Employee submits resignation request",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "last_working_day",
+                  "reason"
+                ],
+                "properties": {
+                  "last_working_day": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Resignation submitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Resignation submitted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/offboarding/tasks": {
+      "get": {
+        "tags": [
+          "Offboarding"
+        ],
+        "summary": "Get offboarding tasks",
+        "description": "Get offboarding tasks for user",
+        "responses": {
+          "200": {
+            "description": "List of offboarding tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tasks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/notifications/leave-analytics": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get leave analytics",
+        "description": "Get leave analytics and statistics",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "self",
+                "team",
+                "organization"
+              ]
+            }
+          },
+          {
+            "name": "team_number",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upcoming_days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 21
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leave analytics data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status_totals": {
+                      "type": "object"
+                    },
+                    "upcoming_leaves": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaveRequest"
+                      }
+                    },
+                    "recent_activity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authentication token obtained from login endpoint"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "john.doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "john.doe@example.com"
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          },
+          "first_name": {
+            "type": "string",
+            "example": "John"
+          },
+          "last_name": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+1234567890"
+          },
+          "address": {
+            "type": "string",
+            "example": "123 Main St, City, State"
+          },
+          "organization": {
+            "type": "string",
+            "example": "Acme Corp"
+          },
+          "employee_id": {
+            "type": "string",
+            "example": "EMP001"
+          },
+          "job_title": {
+            "type": "string",
+            "example": "Software Engineer"
+          },
+          "department": {
+            "type": "string",
+            "example": "Engineering"
+          },
+          "employment_role": {
+            "type": "string",
+            "example": "employee"
+          },
+          "hire_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2023-01-15"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "employee"
+            ]
+          }
+        }
+      },
+      "LeaveRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2024-01-15"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2024-01-17"
+          },
+          "leave_type": {
+            "type": "string",
+            "example": "annual"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Family vacation"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "cancelled"
+            ],
+            "example": "pending"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-10T10:00:00Z"
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "message": {
+            "type": "string",
+            "example": "Your leave request has been approved"
+          },
+          "is_read": {
+            "type": "boolean",
+            "example": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-10T10:00:00Z"
+          }
+        }
+      },
+      "LetterTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Employment Letter"
+          },
+          "content": {
+            "type": "string",
+            "example": "Dear {{first_name}}, this is to confirm..."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "GeneratedLetter": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "content": {
+            "type": "string",
+            "example": "Dear John, this is to confirm..."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EmployeeProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "john.doe"
+          },
+          "email": {
+            "type": "string",
+            "example": "john.doe@example.com"
+          },
+          "first_name": {
+            "type": "string",
+            "example": "John"
+          },
+          "last_name": {
+            "type": "string",
+            "example": "Doe"
+          },
+          "job_title": {
+            "type": "string",
+            "example": "Software Engineer"
+          },
+          "department": {
+            "type": "string",
+            "example": "Engineering"
+          },
+          "team_number": {
+            "type": "string",
+            "example": "ENG-001"
+          },
+          "hire_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2023-01-15"
+          },
+          "employment_role": {
+            "type": "string",
+            "example": "employee"
+          }
+        }
+      },
+      "BirthdayEntry": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "employee_name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "example": "1990-01-15"
+          },
+          "next_birthday": {
+            "type": "string",
+            "format": "date",
+            "example": "2024-01-15"
+          },
+          "days_until": {
+            "type": "integer",
+            "example": 5
+          },
+          "turning": {
+            "type": "integer",
+            "example": 34
+          },
+          "team_number": {
+            "type": "string",
+            "example": "ENG-001"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Error message"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  }
+}
