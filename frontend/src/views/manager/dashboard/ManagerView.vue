@@ -730,7 +730,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import SidebarIcon from '@/components/SidebarIcon.vue';
 import ManagerOverview from '@/views/manager/tabs/ManagerOverview.vue';
 import ManagerChatbot from '@/views/manager/tabs/ManagerChatbot.vue';
-import profileAvatarUrl from '@/assets/Profile.png';
+import profileAvatarUrl from '@/assets/Profile.svg';
 import ManagerCareer from '@/views/manager/tabs/ManagerCareer.vue';
 import ManagerProjects from '@/views/manager/tabs/ManagerProjects.vue';
 import ManagerPeople from '@/views/manager/tabs/ManagerPeople.vue';

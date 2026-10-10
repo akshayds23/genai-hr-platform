@@ -300,7 +300,7 @@
 
 <script>
 import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import apiClient from '@/api'
 
 export default {
   name: 'JdMakerTab',
@@ -321,39 +321,12 @@ export default {
     const showViewModal = ref(false)
     const selectedJD = ref(null)
     const downloadingId = ref(null)
-
     const authToken = localStorage.getItem('authToken') || localStorage.getItem('token')
-    const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || '/api'
-    
-    const apiClient = axios.create({
-      baseURL: API_BASE_URL,
-      headers: { 'Content-Type': 'application/json' }
-    })
-
-    apiClient.interceptors.request.use((config) => {
-      if (authToken) config.headers['Authentication-Token'] = authToken
-      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`)
-      return config
-    })
-
-    apiClient.interceptors.response.use(
-      (response) => {
-        console.log(`API Success: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`)
-        return response
-      },
-      (error) => {
-        if (error.response) {
-          console.error(`API Error: ${error.response.status} - ${error.response.data?.error || 'Unknown error'}`)
-        }
-        return Promise.reject(error)
-      }
-    )
 
     // Debug function to check user auth status
     const checkUserAuth = async () => {
       try {
         const response = await apiClient.get('/me')
-        console.log('Current user info:', response.data)
         return response.data.user
       } catch (error) {
         console.error('Failed to get user info:', error)
@@ -405,10 +378,8 @@ export default {
     const fetchJobDescriptions = async () => {
       loading.value = true
       try {
-        console.log('Fetching job descriptions with auth token:', authToken ? 'Present' : 'Missing')
         const response = await apiClient.get('/hr/jd')
         jobDescriptions.value = response.data.job_descriptions || []
-        console.log(`Successfully loaded ${jobDescriptions.value.length} job descriptions`)
       } catch (error) {
         console.error('Error fetching job descriptions:', error)
         
@@ -544,8 +515,6 @@ export default {
           experience_required: jd.experience_required || null
         }
 
-        console.log('Attempting PDF download with payload:', payload)
-        console.log('PDF endpoint URL:', `${API_BASE_URL}/genai/jd/pdf`)
 
         // 3. Make API call with proper error handling
         let response
@@ -556,7 +525,6 @@ export default {
           })
         } catch (firstError) {
           // If the full payload fails, try with minimal required data
-          console.log('Full payload failed, trying minimal payload')
           const minimalPayload = {
             title: jd.title,
             description: jd.description
@@ -597,7 +565,6 @@ export default {
         link.parentNode.removeChild(link)
         window.URL.revokeObjectURL(url)
         
-        console.log('PDF download successful')
       
       } catch (error) {
         console.error('PDF download failed:', error)
@@ -682,7 +649,6 @@ Downloaded: ${new Date().toLocaleString()}
             link.parentNode.removeChild(link)
             window.URL.revokeObjectURL(url)
             
-            console.log('Fallback text download successful')
           }
         } else {
           alert(errorMessage)
@@ -701,16 +667,10 @@ Downloaded: ${new Date().toLocaleString()}
 
     onMounted(async () => {
       // Debug: Check authentication status
-      console.log('JD Maker Tab initialized')
-      console.log('API Base URL:', API_BASE_URL)
-      console.log('Auth token present:', !!authToken)
       
       if (authToken) {
         const userInfo = await checkUserAuth()
         if (userInfo) {
-          console.log('User roles:', userInfo.roles)
-          console.log('User employment_role:', userInfo.employment_role)
-          console.log('User has hr role:', userInfo.roles?.includes('hr'))
           
           if (!userInfo.roles?.includes('hr')) {
             console.warn('User does NOT have hr role - JD functions may not work')

@@ -101,8 +101,7 @@ const handleSignup = () => {
     },
     withCredentials: true
   })
-    .then(response => {
-      console.log('Signup successful:', response.data)
+    .then(() => {
       successMessage.value = 'Registration successful! You can now log in.'
       // Clear the form
       email.value = ''

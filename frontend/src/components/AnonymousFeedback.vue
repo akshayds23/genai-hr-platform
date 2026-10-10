@@ -136,7 +136,6 @@ export default {
       })
         .then(response => {
           this.categories = response.data.categories || []
-          console.log('Categories loaded:', this.categories)
         })
         .catch(error => {
           console.error('Error fetching categories:', error)
@@ -182,10 +181,7 @@ export default {
           return
         }
         
-        console.log('Submitting feedback with token:', authToken.substring(0, 20) + '...')
-        console.log('Feedback data:', this.form)
-        
-        const response = await axios.post(`${API_BASE_URL}/feedback/submit`, 
+        await axios.post(`${API_BASE_URL}/feedback/submit`, 
           this.form,
           {
             headers: {
@@ -195,8 +191,7 @@ export default {
           }
         )
         
-        console.log('Feedback submitted successfully:', response.data)
-        this.successMsg = '✅ Thank you! Your feedback has been submitted successfully.'
+        this.successMsg = 'Thank you! Your feedback has been submitted successfully.'
         // Reset form
         this.form = {
           title: '',

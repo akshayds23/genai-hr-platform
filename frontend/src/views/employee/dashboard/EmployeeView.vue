@@ -635,7 +635,7 @@ import axios from 'axios';
 import { ArrowRightOnRectangleIcon } from '@heroicons/vue/24/outline';
 import BrandLogo from '@/components/BrandLogo.vue';
 import SidebarIcon from '@/components/SidebarIcon.vue';
-import profileAvatarUrl from '@/assets/Profile.png';
+import profileAvatarUrl from '@/assets/Profile.svg';
 import EmployeeOverviewTab from './tabs/EmployeeOverviewTab.vue';
 import TeamProjectsTab from './tabs/TeamProjectsTab.vue';
 import LeaveTab from './tabs/LeaveTab.vue';

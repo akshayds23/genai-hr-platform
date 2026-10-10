@@ -34,7 +34,7 @@
                    bg-white/80 shadow-[0_28px_70px_rgba(15,23,42,0.18)]"
           >
             <img
-              src="@/assets/Manager.png"
+              src="@/assets/Manager.svg"
               alt="Dashboard illustration"
               class="block w-full object-cover"
             >

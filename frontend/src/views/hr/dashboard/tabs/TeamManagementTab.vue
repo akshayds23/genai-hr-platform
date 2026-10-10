@@ -702,7 +702,6 @@ export default {
         }
         
         // Debug: Log the parameters being sent
-        console.log('Fetching teams with params:', params)
         
         const res = await axios.get(`${API_BASE_URL}/admin/teams`, { 
           params,
@@ -710,7 +709,6 @@ export default {
         })
         
         // Debug: Log the response
-        console.log('Teams API response:', res.data)
         
         let teams = res.data.teams || []
         this.hydrateTeamManagers(teams)
@@ -725,7 +723,6 @@ export default {
         const serverPaginated = res.data.total_pages && res.data.total_pages > 1
         
         if (hasActiveFilters && !serverPaginated && this.currentPage === 1) {
-          console.log('🔧 Backend might not support filters - applying client-side filtering')
           
           // Get all teams first if we don't have them
           if (this.allTeams.length === 0) {
@@ -735,7 +732,6 @@ export default {
           // Apply client-side filters
           teams = this.applyClientSideFilters(this.allTeams)
           this.usingClientSideFiltering = true
-          console.log(`🎯 Client-side filtered: showing ${teams.length} teams`)
         } else {
           this.usingClientSideFiltering = false
         }
@@ -939,7 +935,6 @@ export default {
       }
       
       this.searchTimeout = setTimeout(() => {
-        console.log('Search triggered with query:', this.searchQuery)
         this.currentPage = 1
         this.fetchTeams()
       }, 300)
@@ -952,7 +947,6 @@ export default {
     },
     
     applyFilters() {
-      console.log('Filter applied:', this.filterByManager)
       this.currentPage = 1
       this.fetchTeams()
     },
@@ -969,19 +963,16 @@ export default {
       this.sortBy = 'name'
       this.sortDirection = 'asc'
       this.currentPage = 1
-      console.log('All filters cleared')
       this.fetchTeams()
     },
     
     applySort() {
-      console.log('Sort applied:', this.sortBy, this.sortDirection)
       this.currentPage = 1
       this.fetchTeams()
     },
     
     toggleSortDirection() {
       this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'
-      console.log('Sort direction toggled:', this.sortDirection)
       this.currentPage = 1
       this.fetchTeams()
     },
@@ -1054,15 +1045,7 @@ export default {
       return filtered
     },
     
-    // Debug method to test API manually
     async testFilters() {
-      console.log('Current filter state:', {
-        searchQuery: this.searchQuery,
-        filterByManager: this.filterByManager,
-        sortBy: this.sortBy,
-        sortDirection: this.sortDirection,
-        currentPage: this.currentPage
-      })
       await this.fetchTeams()
     }
   }

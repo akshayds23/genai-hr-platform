@@ -11,7 +11,7 @@
           <div
             class="hero-illustration relative overflow-hidden rounded-[28px] border border-[#498528]/60 shadow-[0_25px_60px_rgba(15,23,42,0.1)] transition hover:scale-[1.01]"
           >
-            <img src="@/assets/Hr.png" alt="HR illustration" class="block w-full object-cover" />
+            <img src="@/assets/Hr.svg" alt="HR illustration" class="block w-full object-cover" />
           </div>
         </div>
 
