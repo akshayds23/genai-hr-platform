@@ -16,13 +16,12 @@ Security considerations:
   necessary to ensure uniqueness.
 """
 
-from flask import Blueprint, request, jsonify, current_app
-from flask_security.utils import hash_password
+from flask import Blueprint, current_app, jsonify, request
 from flask_security import current_user
+from flask_security.utils import hash_password
 
-from app.models.models import User, db
 from app.api.utils import set_user_roles
-
+from app.models.models import User, db
 
 # Define blueprint for HR signup
 hr_signup_bp = Blueprint('hr_signup', __name__)

@@ -1,10 +1,11 @@
 # app/api/admin.py
+
 from flask import Blueprint, jsonify, request
-from flask_security import auth_required, roles_required, roles_accepted, current_user
-from datetime import datetime
-from app.models.models import User, Role, db
-from app.services.offboarding import start_offboarding_for_user
+from flask_security import auth_required, current_user, roles_accepted, roles_required
+
 from app.api.utils import set_user_roles
+from app.models.models import User, db
+from app.services.offboarding import start_offboarding_for_user
 
 admin_bp = Blueprint('admin', __name__)
 

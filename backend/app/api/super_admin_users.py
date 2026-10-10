@@ -2,18 +2,18 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+import os
 from datetime import datetime
+from pathlib import Path
 
-from flask import Blueprint, jsonify, request, current_app
-from flask_security import auth_required, roles_required, current_user
+from flask import Blueprint, current_app, jsonify, request
+from flask_security import auth_required, current_user, roles_required
 from flask_security.utils import hash_password
-from sqlalchemy import or_, func, case
+from sqlalchemy import case, func, or_
 
-from app.models.models import db, User, Role, OffboardingTask
-from app.services.offboarding import DEFAULT_FULL_OFFBOARDING_TASKS
 from app.api.utils import set_user_roles
-
+from app.models.models import OffboardingTask, Role, User, db
+from app.services.offboarding import DEFAULT_FULL_OFFBOARDING_TASKS
 
 super_admin_users_bp = Blueprint('super_admin_users', __name__)
 
@@ -128,11 +128,11 @@ def list_users():
     per_page = min(max(per_page, 1), 100)
 
     query = User.query
-    
+
     # Exclude current user and other HR users from the list
     query = query.filter(User.id != current_user.id)
     query = query.filter(~User.roles.any(Role.name == 'hr'))
-    
+
     if search:
         like = f"%{search.lower()}%"
         query = query.filter(
@@ -240,11 +240,11 @@ def create_user():
 @roles_required('hr')
 def get_user(user_id):
     user = User.query.get_or_404(user_id)
-    
+
     # Prevent accessing current user or other HR users
     if user.id == current_user.id or user.has_role('hr'):
         return jsonify({'error': 'Access denied.'}), 403
-    
+
     return jsonify({'user': _prepare_user_dict(user)}), 200
 
 
@@ -258,7 +258,7 @@ def update_user(user_id):
     # Prevent editing current user or other HR users
     if user.id == current_user.id:
         return jsonify({'error': 'You cannot edit your own account.'}), 400
-    
+
     if user.has_role('hr'):
         return jsonify({'error': 'You cannot edit other HR users.'}), 403
 
@@ -320,6 +320,8 @@ def update_user(user_id):
             return jsonify({'error': str(ve)}), 400
 
     if data.get('password'):
+        if str(os.getenv('DEMO_MODE', '')).lower() in ('1', 'true', 'yes') and user.email in ['hr@example.com', 'manager@example.com', 'employee@example.com']:
+            return jsonify({'error': 'Changing passwords for demo accounts is disabled in demo mode.'}), 403
         user.password = hash_password(data['password'])
 
     db.session.commit()
@@ -330,6 +332,9 @@ def update_user(user_id):
 @auth_required()
 @roles_required('hr')
 def delete_user(user_id):
+    if str(os.getenv('DEMO_MODE', '')).lower() in ('1', 'true', 'yes'):
+        return jsonify({'error': 'Deleting users is disabled in demo mode.'}), 403
+
     user = User.query.get_or_404(user_id)
     if user.id == current_user.id:
         return jsonify({'error': 'You cannot delete your own account.'}), 400

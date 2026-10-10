@@ -1,14 +1,14 @@
 # app/api/authentication.py
-from flask import Blueprint, request, jsonify, current_app
-from flask_security import auth_required, current_user, login_user, logout_user, roles_required
-from flask_security.utils import verify_password, hash_password
-from app.models.models import User, db
-from flask import send_file, Response
-from io import BytesIO
-from datetime import datetime
 import re
+from datetime import datetime
+
+from flask import Blueprint, Response, current_app, jsonify, request
+from flask_security import auth_required, current_user, login_user, logout_user, roles_required
+from flask_security.utils import hash_password, verify_password
 from sqlalchemy import func
+
 from app.api.utils import set_user_roles
+from app.models.models import User, db
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -16,23 +16,6 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
-
-    if not data:
-        return jsonify({'error': 'Email/username and password required'}), 400
-
-    requested_role = (data.get('role') or '').strip().lower()
-    if not requested_role:
-        return jsonify({'error': 'Role selection required'}), 400
-
-    # TechCorp India three-role hierarchy
-    role_aliases = {
-        'hr': 'hr',           # Super Administrator level
-        'manager': 'manager', # Administrative level  
-        'employee': 'employee' # User level
-    }
-    canonical_role = role_aliases.get(requested_role)
-    if not canonical_role:
-        return jsonify({'error': f"Invalid role. Expected one of: {', '.join(sorted(role_aliases))}"}), 400
 
     identifier = (data.get('username') or data.get('email') or data.get('identifier') or '').strip()
     password = data.get('password')
@@ -44,12 +27,28 @@ def login():
     if not user and identifier:
         user = User.query.filter(func.lower(User.email) == identifier.lower()).first()
 
+    requested_role = (data.get('role') or '').strip().lower()
+    if not requested_role and user and user.roles:
+        requested_role = user.roles[0].name.lower()
+    elif not requested_role:
+        return jsonify({'error': 'Role selection required'}), 400
+
+    # TechCorp India three-role hierarchy
+    role_aliases = {
+        'hr': 'hr',           # Super Administrator level
+        'manager': 'manager', # Administrative level
+        'employee': 'employee' # User level
+    }
+    canonical_role = role_aliases.get(requested_role)
+    if not canonical_role:
+        return jsonify({'error': f"Invalid role. Expected one of: {', '.join(sorted(role_aliases))}"}), 400
+
     if user and verify_password(password, user.password):
-        # Double-check: Explicit role validation 
+        # Double-check: Explicit role validation
         user_roles = [role.name.lower() for role in user.roles]
         if canonical_role not in user_roles:
             return jsonify({'error': 'Account does not have the requested role access.'}), 403
-        
+
         if not _user_matches_selected_role(user, canonical_role):
             return jsonify({'error': 'Current account does not exist.'}), 403
 
@@ -137,7 +136,6 @@ def update_current_user_profile():
 
 @auth_bp.route('/api/register', methods=['POST'])
 def register():
-    from flask import current_app
     # Only allow registration if enabled in config
     if not current_app.config.get('SECURITY_REGISTERABLE', True):
         return jsonify({'error': 'Registration is disabled'}), 403
@@ -290,12 +288,11 @@ def admin_download_user_resume(user_id):
 
 def _user_matches_selected_role(user, selected_role):
     """Validate that the authenticated user can act as the requested role.
-    
+
     With single role constraint: users can only login with their exactly assigned role.
     No role hierarchy or cross-role access is allowed.
     """
-    from flask import current_app
-    
+
     normalized_role = (selected_role or '').strip().lower()
     user_id = getattr(user, 'id', None)
     if not user_id or not normalized_role:
@@ -311,8 +308,8 @@ def _user_matches_selected_role(user, selected_role):
     # Get all current roles for the user
     user_roles = [role.name.lower() for role in fresh_user.roles]
     has_requested_role = normalized_role in user_roles
-    
+
     current_app.logger.info(f"Role check: user {fresh_user.email} has roles {user_roles}, requesting '{normalized_role}', result: {has_requested_role}")
-    
+
     # Users can only login with their exact assigned role - no cross-role access
     return has_requested_role

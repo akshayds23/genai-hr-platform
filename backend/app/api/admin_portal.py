@@ -1,11 +1,11 @@
 from datetime import date, datetime
-from typing import Dict, Optional, Tuple
 
 from flask import Blueprint, jsonify, request
-from flask_security import auth_required, roles_required, current_user
+from flask_security import auth_required, current_user, roles_required
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import joinedload
 
+from app.api.genai.chatbot import hr_chatbot_service
 from app.models.models import (
     CandidateResume,
     HRQuestionLog,
@@ -16,8 +16,6 @@ from app.models.models import (
     db,
 )
 from app.services.notifications import notify_users
-from app.api.genai.B_HRchatbot import hr_chatbot_service
-
 
 admin_portal_bp = Blueprint('admin_portal', __name__)
 
@@ -55,7 +53,7 @@ def _determine_employee_status(user: User) -> str:
     return status
 
 
-def _serialize_user(user: User) -> Dict:
+def _serialize_user(user: User) -> dict:
     if user.has_role('hr'):
         role_label = 'hr'
     elif user.has_role('manager'):
@@ -80,7 +78,7 @@ def _serialize_user(user: User) -> Dict:
     }
 
 
-def _apply_leave_decision(leave: LeaveRequest, new_status: str, comment: Optional[str] = None) -> None:
+def _apply_leave_decision(leave: LeaveRequest, new_status: str, comment: str | None = None) -> None:
     leave.status = new_status
     leave.decision_reason = (comment or '').strip() or None
     leave.approver_id = current_user.id
@@ -201,7 +199,7 @@ def search_employees():
 # ---------------------------------------------------------------------------
 
 
-def _serialize_leave(leave: LeaveRequest) -> Dict:
+def _serialize_leave(leave: LeaveRequest) -> dict:
     user = leave.user
     return {
         'id': leave.id,
@@ -238,7 +236,7 @@ def list_manager_leaves():
     if submitted_by == 'manager':
         query = query.filter(func.lower(User.employment_role) == 'manager')
     elif submitted_by == 'employee':
-        
+
         query = query.filter(func.lower(User.employment_role) == 'employee')
         query = query.filter(
             and_(
@@ -255,7 +253,7 @@ def list_manager_leaves():
         if statuses:
             query = query.filter(LeaveRequest.status.in_(statuses))
 
-   
+
     query = query.filter(LeaveRequest.leave_type.notin_(['resignation', 'offboarding']))
 
     leaves = query.order_by(LeaveRequest.created_at.desc()).limit(200).all()
@@ -298,7 +296,7 @@ def reject_leave(leave_id: int):
 # ---------------------------------------------------------------------------
 
 
-def _serialize_question(question: HRQuestionLog) -> Dict:
+def _serialize_question(question: HRQuestionLog) -> dict:
     return {
         'id': question.id,
         'question': question.question,
@@ -376,7 +374,7 @@ def answer_escalated_question(question_id: int):
 # ---------------------------------------------------------------------------
 
 
-def _aggregate_resume_statuses() -> Tuple[Dict[str, int], int]:
+def _aggregate_resume_statuses() -> tuple[dict[str, int], int]:
     rows = (
         db.session.query(
             func.coalesce(func.lower(CandidateResume.status), 'pending').label('status'),
@@ -385,7 +383,7 @@ def _aggregate_resume_statuses() -> Tuple[Dict[str, int], int]:
         .group_by('status')
         .all()
     )
-    summary: Dict[str, int] = {}
+    summary: dict[str, int] = {}
     total = 0
     for status, count in rows:
         summary[status] = count
