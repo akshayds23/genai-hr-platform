@@ -1,55 +1,45 @@
 import json
-import os
+import logging
 import re
-from pathlib import Path
-from typing import List, Optional, Tuple
 from datetime import datetime
+from pathlib import Path
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
 import numpy as np
-from flask import Blueprint, current_app, jsonify, request
-from flask_security import auth_required, current_user
+from flask import current_app
 from pypdf import PdfReader
 
-# NEW: Groq (OpenAI-compatible) client
-from openai import OpenAI
-
 from app.models.models import (
-    db,
     AuditLog,
     Conversation,
     HRKnowledge,
     HRQuestionLog,
     Message,
     User,
+    db,
+)
+from app.services.ai import (
+    AIRateLimitError,
+    AIUnavailableError,
+    embed_texts,
+    generate_text,
+    get_embedding_model_name,
 )
 from app.services.notifications import (
     determine_hr_user_ids,
-    determine_manager_ids,
     notify_users,
 )
 
-
-hr_chatbot_bp = Blueprint('hr_chatbot', __name__)
-
+logger = logging.getLogger(__name__)
 
 class HRChatbotService:
     """Encapsulates Gemini powered RAG workflow for the HR virtual assistant."""
 
     def __init__(self):
-        self._knowledge_cache: List[dict] = []
-        self._client_ready = False
-        self._model = None
-        self._similarity_model = None
-        self._embedding_model_name = 'models/text-embedding-004'
-        self._generator_model_name = 'gemini-2.5-flash'
-        self._similarity_model_name = 'gemini-2.5-flash'
-        self._knowledge_last_refreshed_at: Optional[datetime] = None
-        # Track how many HRKnowledge records are currently indexed
+        self._knowledge_cache: list[dict] = []
+        self._knowledge_last_refreshed_at: datetime | None = None
         self._knowledge_record_count: int = 0
 
-    def _latest_knowledge_modified_at(self) -> Optional[datetime]:
+    def _latest_knowledge_modified_at(self) -> datetime | None:
         """Return the timestamp of the most recently modified knowledge entry."""
         try:
             result = (
@@ -64,65 +54,6 @@ class HRChatbotService:
         except Exception:
             return None
 
-    # --------------------------------------------------------------------- #
-    # Initialisation helpers
-    # --------------------------------------------------------------------- #
-    def _ensure_client(self):
-        if self._client_ready:
-            return
-        api_key = (
-            os.getenv('GEMINI_API_KEY')
-            or current_app.config.get('GEMINI_API_KEY')
-        )
-        if not api_key:
-            raise RuntimeError('GEMINI_API_KEY is not configured.')
-        genai.configure(api_key=api_key)
-        if not self._model:
-            generator_name = current_app.config.get(
-                'HR_CHATBOT_MODEL',
-                self._generator_model_name,
-            )
-            self._model = genai.GenerativeModel(generator_name)
-        if not self._similarity_model:
-            similarity_name = current_app.config.get(
-                'HR_CHATBOT_SIMILARITY_MODEL',
-                self._similarity_model_name,
-            )
-            self._similarity_model = genai.GenerativeModel(similarity_name)
-        self._client_ready = True
-
-    # NEW: Groq fallback
-    def _generate_with_groq(self, prompt: str) -> str:
-        """
-        Fallback to Groq if Gemini is unavailable or fails.
-        Requires GROQ_API_KEY in environment or Flask config.
-        """
-        api_key = (
-            os.getenv('GROQ_API_KEY')
-            or current_app.config.get('GROQ_API_KEY')
-        )
-        if not api_key:
-            current_app.logger.error("GROQ_API_KEY is not configured.")
-            return ""
-
-        try:
-            client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.groq.com/openai/v1",
-            )
-
-            response = client.responses.create(
-                input=prompt,
-                model="openai/gpt-oss-20b",
-            )
-
-            text = getattr(response, "output_text", "") or ""
-            return text.strip()
-        except Exception as exc:
-            current_app.logger.exception("HRChatbot Groq fallback failed: %s", exc)
-            return ""
-
-    # NEW: shared helper – try Gemini, then Groq
     def _generate_llm_answer(
         self,
         prompt: str,
@@ -130,28 +61,13 @@ class HRChatbotService:
         top_p: float = 0.8,
         max_tokens: int = 700,
     ) -> str:
-        text = ""
         try:
-            self._ensure_client()
-            response = self._model.generate_content(
-                prompt,
-                generation_config=GenerationConfig(
-                    temperature=temperature,
-                    top_p=top_p,
-                    candidate_count=1,
-                    max_output_tokens=max_tokens,
-                ),
-            )
-            text = (response.text or "").strip()
+            return generate_text(prompt, max_tokens=max_tokens)
+        except (AIUnavailableError, AIRateLimitError):
+            raise
         except Exception as exc:
-            current_app.logger.exception("HRChatbot Gemini generation failed: %s", exc)
-
-        if not text:
-            groq_text = self._generate_with_groq(prompt)
-            if groq_text:
-                return groq_text
-
-        return text
+            current_app.logger.exception("HRChatbot generation failed: %s", exc)
+            return ""
 
     def _ensure_knowledge(self, force: bool = False):
         """
@@ -185,11 +101,19 @@ class HRChatbotService:
             self._ingest_pdf()
             records = HRKnowledge.query.order_by(HRKnowledge.id.asc()).all()
 
-        knowledge_cache: List[dict] = []
+        knowledge_cache: list[dict] = []
         updated = False
+        active_model = get_embedding_model_name()
         for record in records:
-            embedding_vector: Optional[List[float]] = None
-            if record.embedding:
+            embedding_vector: list[float] | None = None
+            meta = {}
+            if record.metadata_json:
+                try:
+                    meta = json.loads(record.metadata_json)
+                except Exception:
+                    meta = {}
+            stored_model = meta.get('embedding_model')
+            if record.embedding and stored_model == active_model:
                 try:
                     embedding_vector = json.loads(record.embedding)
                 except (ValueError, TypeError):
@@ -199,6 +123,8 @@ class HRChatbotService:
                     embedding_vector = self._embed_text(
                         f"{record.question}\n{record.answer}"
                     )
+                except AIUnavailableError:
+                    continue
                 except Exception as exc:
                     current_app.logger.exception(
                         "HRChatbot embedding refresh failed for id=%s: %s",
@@ -207,18 +133,21 @@ class HRChatbotService:
                     )
                     continue
                 record.embedding = json.dumps(embedding_vector)
+                meta['embedding_model'] = active_model
+                record.metadata_json = json.dumps(meta)
                 updated = True
-            vector = np.array(embedding_vector, dtype=np.float32)
-            knowledge_cache.append(
-                {
-                    'id': record.id,
-                    'question': record.question,
-                    'answer': record.answer,
-                    'source': record.source,
-                    'embedding': vector,
-                    'norm': float(np.linalg.norm(vector)),
-                }
-            )
+            if embedding_vector is not None:
+                vector = np.array(embedding_vector, dtype=np.float32)
+                knowledge_cache.append(
+                    {
+                        'id': record.id,
+                        'question': record.question,
+                        'answer': record.answer,
+                        'source': record.source,
+                        'embedding': vector,
+                        'norm': float(np.linalg.norm(vector)),
+                    }
+                )
 
         if updated:
             db.session.commit()
@@ -240,7 +169,7 @@ class HRChatbotService:
             current_app.logger.warning('HR questions PDF not found at %s', pdf_path)
             return
         reader = PdfReader(str(pdf_path))
-        lines: List[str] = []
+        lines: list[str] = []
         for page in reader.pages:
             try:
                 page_text = page.extract_text() or ''
@@ -266,10 +195,10 @@ class HRChatbotService:
         db.session.commit()
 
     @staticmethod
-    def _parse_qa_pairs(lines: List[str]) -> List[Tuple[str, str]]:
-        qa_pairs: List[Tuple[str, str]] = []
-        current_question: Optional[str] = None
-        current_answer_lines: List[str] = []
+    def _parse_qa_pairs(lines: list[str]) -> list[tuple[str, str]]:
+        qa_pairs: list[tuple[str, str]] = []
+        current_question: str | None = None
+        current_answer_lines: list[str] = []
 
         for raw_line in lines:
             line = (raw_line or '').strip()
@@ -308,7 +237,7 @@ class HRChatbotService:
         if qa_pairs:
             return qa_pairs
 
-        buffer: List[str] = []
+        buffer: list[str] = []
         for raw_line in lines:
             line = (raw_line or '').strip()
             if not line:
@@ -328,7 +257,6 @@ class HRChatbotService:
         Warm up the chatbot retrieval caches for a specific user.
         """
         try:
-            self._ensure_client()
             self._ensure_knowledge()
         except Exception as error:  # pragma: no cover - defensive
             current_app.logger.warning(
@@ -340,25 +268,20 @@ class HRChatbotService:
     # --------------------------------------------------------------------- #
     # Embedding & retrieval helpers
     # --------------------------------------------------------------------- #
-    def _embed_text(self, text: str) -> List[float]:
-        self._ensure_client()
-        response = genai.embed_content(
-            model=self._embedding_model_name,
-            content=text,
-        )
-        embedding = response.get('embedding') or response.get('values')
-        if not embedding:
+    def _embed_text(self, text: str) -> list[float]:
+        results = embed_texts([text])
+        if not results:
             raise RuntimeError('Unable to compute embedding for text.')
-        return embedding
+        return results[0]
 
-    def _retrieve_top_matches(self, question_vector: np.ndarray, top_k: int = 3) -> List[dict]:
+    def _retrieve_top_matches(self, question_vector: np.ndarray, top_k: int = 3) -> list[dict]:
         if not self._knowledge_cache:
             return []
         query_norm = float(np.linalg.norm(question_vector))
         if query_norm == 0:
             return []
 
-        scored_records: List[dict] = []
+        scored_records: list[dict] = []
         for record in self._knowledge_cache:
             denom = query_norm * record['norm']
             if denom == 0:
@@ -370,7 +293,6 @@ class HRChatbotService:
         return scored_records[:top_k]
 
     def _semantic_similarity_score(self, query: str, candidate: str) -> float:
-        self._ensure_client()
         if not query or not candidate:
             return 0.0
         prompt = (
@@ -382,15 +304,7 @@ class HRChatbotService:
             "Score:"
         )
         try:
-            response = self._similarity_model.generate_content(
-                prompt,
-                generation_config=GenerationConfig(
-                    temperature=0.0,
-                    top_p=0.0,
-                    candidate_count=1,
-                ),
-            )
-            text = (response.text or '').strip()
+            text = generate_text(prompt, max_tokens=20)
             match = re.search(r'1(?:\.0+)?|0(?:\.\d+)?', text)
             if not match:
                 return 0.0
@@ -403,8 +317,8 @@ class HRChatbotService:
         except Exception:
             return 0.0
 
-    def _semantic_rerank(self, question: str, matches: List[dict]) -> List[dict]:
-        reranked: List[dict] = []
+    def _semantic_rerank(self, question: str, matches: list[dict]) -> list[dict]:
+        reranked: list[dict] = []
         for item in matches:
             candidate_question = item['record']['question']
             similarity = self._semantic_similarity_score(question, candidate_question)
@@ -417,7 +331,7 @@ class HRChatbotService:
         return reranked
 
     @staticmethod
-    def _build_history(conversation: Optional[Conversation], limit: int = 6) -> str:
+    def _build_history(conversation: Conversation | None, limit: int = 6) -> str:
         if not conversation:
             return ''
 
@@ -430,7 +344,7 @@ class HRChatbotService:
         if not messages:
             return ''
 
-        history_lines: List[str] = []
+        history_lines: list[str] = []
         for message in messages[-limit * 2:]:
             history_lines.append(f"{message.content}")
         return '\n'.join(history_lines)
@@ -438,9 +352,9 @@ class HRChatbotService:
     def _build_prompt(
         self,
         question: str,
-        context_snippets: List[str],
+        context_snippets: list[str],
         history: str,
-        user: Optional[User],
+        user: User | None,
     ) -> str:
         instructions = (
             "You are Ava, the HR assistant for the Employee Engagement Portal. "
@@ -508,24 +422,16 @@ class HRChatbotService:
             f"Question: {question}"
         )
         try:
-            self._ensure_client()
-            response = self._model.generate_content(
-                classification_prompt,
-                generation_config=GenerationConfig(
-                    temperature=0.0,
-                    candidate_count=1,
-                    top_p=0.0,
-                    max_output_tokens=10,
-                ),
-            )
-            label = (response.text or '').strip().lower()
+            label = generate_text(classification_prompt, max_tokens=10).strip().lower()
             return 'hr' in label
+        except (AIUnavailableError, AIRateLimitError):
+            raise
         except Exception:
             # If classifier fails, default to in-domain so we can still try to help
             return True
 
     @staticmethod
-    def _sanitize_response_text(text: Optional[str]) -> str:
+    def _sanitize_response_text(text: str | None) -> str:
         if not text:
             return ""
 
@@ -533,7 +439,7 @@ class HRChatbotService:
         cleaned = text.replace("**", "")
 
         lines = cleaned.splitlines()
-        out_lines: List[str] = []
+        out_lines: list[str] = []
 
         for line in lines:
             stripped = line.strip()
@@ -557,20 +463,20 @@ class HRChatbotService:
                     continue
 
                 parts = [p.strip() for p in stripped.strip("|").split("|")]
-                # Join columns with " – " so it's readable
-                stripped = " – ".join([p for p in parts if p])
+                # Join columns with " - " so it's readable
+                stripped = " - ".join([p for p in parts if p])
 
             out_lines.append(stripped)
 
         # Collapse extra blank lines
-        result = "\n".join(l for l in out_lines if l.strip())
+        result = "\n".join(line for line in out_lines if line.strip())
         return result
 
     def answer_question(
         self,
-        user: Optional[User],
+        user: User | None,
         question: str,
-        conversation: Optional[Conversation],
+        conversation: Conversation | None,
         auto_escalate: bool = True,
     ):
         # Normalized tokens for quick DB lookups
@@ -635,21 +541,18 @@ class HRChatbotService:
         # 1) Embedding + RAG path
         # -----------------------------------------------------------------
         try:
-            self._ensure_client()
-        except Exception as exc:
-            current_app.logger.exception("HRChatbot client init failed: %s", exc)
-
-        try:
             self._ensure_knowledge()
         except Exception as exc:
             current_app.logger.exception("HRChatbot knowledge ensure failed: %s", exc)
             self._knowledge_cache = []
 
-        top_matches: List[dict] = []
+        top_matches: list[dict] = []
         try:
             if self._knowledge_cache:
                 question_vector = np.array(self._embed_text(question), dtype=np.float32)
                 top_matches = self._retrieve_top_matches(question_vector)
+        except AIUnavailableError:
+            raise
         except Exception as exc:
             current_app.logger.exception("HRChatbot retrieval failed: %s", exc)
             top_matches = []
@@ -747,13 +650,12 @@ class HRChatbotService:
 
     def escalate_question(
         self,
-        user: Optional[User],
+        user: User | None,
         question: str,
-        conversation: Optional[Conversation] = None,
+        conversation: Conversation | None = None,
     ):
         """Explicitly forward a question to HR after the employee confirms."""
         try:
-            self._ensure_client()
             self._ensure_knowledge()
         except Exception:
             pass
@@ -773,10 +675,10 @@ class HRChatbotService:
 
     def _log_pending_question(
         self,
-        user: Optional[User],
-        conversation: Optional[Conversation],
+        user: User | None,
+        conversation: Conversation | None,
         question: str,
-        top_matches: Optional[List[dict]],
+        top_matches: list[dict] | None,
     ) -> HRQuestionLog:
         log_entry = HRQuestionLog(
             user_id=user.id if user else None,
@@ -847,6 +749,7 @@ class HRChatbotService:
     ):
         """Store manually curated answers so future RAG calls can reuse them."""
         vector = self._embed_text(f"{question}\n{answer}")
+        active_model = get_embedding_model_name()
         trimmed_question = question.strip()
         normalized_question = trimmed_question.lower()
         existing = (
@@ -858,12 +761,16 @@ class HRChatbotService:
             existing.answer = answer.strip()
             existing.source = source
             existing.embedding = json.dumps(vector)
+            meta = json.loads(existing.metadata_json) if existing.metadata_json else {}
+            meta['embedding_model'] = active_model
+            existing.metadata_json = json.dumps(meta)
         else:
             record = HRKnowledge(
                 question=trimmed_question,
                 answer=answer.strip(),
                 source=source,
                 embedding=json.dumps(vector),
+                metadata_json=json.dumps({'embedding_model': active_model}),
             )
             db.session.add(record)
         db.session.commit()
@@ -875,217 +782,3 @@ class HRChatbotService:
 
 hr_chatbot_service = HRChatbotService()
 
-
-# ------------------------------------------------------------------------- #
-# API routes
-# ------------------------------------------------------------------------- #
-
-
-@hr_chatbot_bp.route('/hr/questions', methods=['GET'])
-@auth_required()
-def list_hr_questions():
-    status_filter = request.args.get('status', 'pending').lower()
-    statuses = {status.strip() for status in status_filter.split(',') if status.strip()}
-    if not statuses:
-        statuses = {'pending'}
-
-    query = HRQuestionLog.query
-    if 'all' not in statuses:
-        query = query.filter(HRQuestionLog.status.in_(list(statuses)))
-
-    if current_user.is_admin():
-        pass
-    elif current_user.employment_role == 'manager':
-        team_number = getattr(current_user, 'team_number', None)
-        team_user_ids = []
-        if team_number:
-            team_user_ids = [
-                member.id
-                for member in User.query
-                .filter(User.team_number == team_number)
-                .filter(User.active.is_(True))
-                .all()
-            ]
-        query = query.filter(
-            (HRQuestionLog.manager_id == current_user.id)
-            | (HRQuestionLog.user_id.in_(team_user_ids) if team_user_ids else False)
-        )
-    else:
-        query = query.filter(HRQuestionLog.user_id == current_user.id)
-
-    questions = [
-        {
-            'id': item.id,
-            'question': item.question,
-            'answer': item.answer,
-            'status': item.status,
-            'source': item.source,
-            'confidence': item.confidence,
-            'created_at': item.created_at.isoformat() if item.created_at else None,
-            'updated_at': item.updated_at.isoformat() if item.updated_at else None,
-            'resolved_at': item.resolved_at.isoformat() if item.resolved_at else None,
-            'user_id': item.user_id,
-            'manager_id': item.manager_id,
-        }
-        for item in query.order_by(HRQuestionLog.created_at.desc()).limit(100).all()
-    ]
-    return jsonify({'questions': questions})
-
-
-@hr_chatbot_bp.route('/hr/questions/<int:question_id>/answer', methods=['POST'])
-@auth_required()
-def resolve_hr_question(question_id: int):
-    if not (current_user.is_admin() or current_user.employment_role == 'manager'):
-        return jsonify({'error': 'Only managers or HR can resolve questions.'}), 403
-
-    payload = request.get_json() or {}
-    answer = (payload.get('answer') or '').strip()
-    if not answer:
-        return jsonify({'error': 'Answer is required.'}), 400
-
-    question = HRQuestionLog.query.get_or_404(question_id)
-    question.answer = answer
-    question.status = 'resolved'
-    question.resolved_by = current_user.id
-    question.resolved_at = db.func.now()
-    question.source = question.source or 'manual_review'
-    question.updated_at = db.func.now()
-
-    if not question.manager_id:
-        question.manager_id = current_user.id
-
-    hr_chatbot_service.add_manual_knowledge(
-        question.question,
-        answer,
-        source='manual_review',
-    )
-
-    details_payload = {
-        'question_id': question.id,
-        'question': question.question,
-        'answer': answer,
-        'resolved_by': current_user.id,
-    }
-    if question.user_id:
-        audit_entry = AuditLog(
-            actor_id=current_user.id,
-            action='hr-question-resolved',
-            object_type='hr_question',
-            object_id=str(question.user_id),
-            details=json.dumps(details_payload),
-        )
-        db.session.add(audit_entry)
-
-        notify_users(
-            [question.user_id],
-            category='hr_question',
-            title='HR question answered',
-            message='HR has responded to your question. Tap to read the reply.',
-            metadata={
-                'question_id': question.id,
-                'status': question.status,
-            },
-        )
-        if question.manager_id and question.manager_id != question.user_id:
-            notify_users(
-                [question.manager_id],
-                category='hr_question',
-                title='HR question answered',
-                message='HR has responded to the escalated question from your team.',
-                metadata={
-                    'question_id': question.id,
-                    'status': question.status,
-                    'resolved_for': 'manager',
-                },
-            )
-
-    db.session.commit()
-
-    return jsonify({'message': 'Question resolved and knowledge base updated.'})
-
-
-@hr_chatbot_bp.route('/genai/chat/knowledge', methods=['GET'])
-@auth_required()
-def get_knowledge_base():
-    """Get all questions in the HR knowledge base (for debugging/reference)."""
-    try:
-        records = HRKnowledge.query.order_by(HRKnowledge.id.asc()).all()
-        questions = [
-            {
-                'id': record.id,
-                'question': record.question,
-                'source': record.source,
-            }
-            for record in records[:20]  # Limit to first 20
-        ]
-        return jsonify({
-            'total': len(records),
-            'questions': questions,
-        }), 200
-    except Exception as error:
-        current_app.logger.exception('Error fetching knowledge base: %s', error)
-        return jsonify({'error': str(error)}), 500
-
-
-@hr_chatbot_bp.route('/genai/chat', methods=['POST'])
-@auth_required()
-def chat():
-    """Send a message to the HR chatbot and get a response."""
-    payload = request.get_json() or {}
-    user_message = (payload.get('message') or '').strip()
-    raw_auto_escalate = payload.get('auto_escalate')
-
-    if not user_message:
-        return jsonify({'error': 'Message is required'}), 400
-
-    if isinstance(raw_auto_escalate, str):
-        normalized = raw_auto_escalate.strip().lower()
-        auto_escalate = normalized not in {'false', '0', 'no'}
-    elif raw_auto_escalate is None:
-        auto_escalate = True
-    else:
-        auto_escalate = bool(raw_auto_escalate)
-
-    try:
-        conversation = Conversation.query.filter_by(
-            user_id=current_user.id,
-        ).first()
-        if not conversation:
-            conversation = Conversation(user_id=current_user.id)
-            db.session.add(conversation)
-            db.session.commit()
-
-        user_msg = Message(
-            conversation_id=conversation.id,
-            sender='user',
-            content=user_message,
-        )
-        db.session.add(user_msg)
-        db.session.commit()
-
-        result = hr_chatbot_service.answer_question(
-            current_user,
-            user_message,
-            conversation,
-            auto_escalate=auto_escalate,
-        )
-
-        ai_msg = Message(
-            conversation_id=conversation.id,
-            sender='assistant',
-            content=result['answer'],
-        )
-        db.session.add(ai_msg)
-        db.session.commit()
-
-        return jsonify({
-            'response': result['answer'],
-            'status': result.get('status', 'answered'),
-            'question_id': result.get('question_log_id'),
-            'reference': result.get('reference'),
-            'reference_source': result.get('reference_source'),
-            'conversation_id': conversation.id,
-        }), 200
-    except Exception as error:
-        current_app.logger.exception('Chat error: %s', error)
-        return jsonify({'error': str(error)}), 500
