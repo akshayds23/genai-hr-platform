@@ -1,470 +1,27 @@
 import json
-import os
-import re
-from datetime import datetime
-from typing import Dict, List, Optional
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from io import BytesIO
 
-import PyPDF2
-import google.generativeai as genai
 from flask import Blueprint, jsonify, request
 from flask_security import auth_required, current_user
 from werkzeug.utils import secure_filename
 
-# NEW: Groq (OpenAI-compatible) client
-from openai import OpenAI
+from app.models.models import CandidateResume, JobDescription, ResumeMatch, Team, db
+from app.services.ai import AIUnavailableError
+from app.services.resumes import (
+    allowed_file,
+    generate_resume_summary_gemini,
+    match_resume_to_jd_gemini,
+    process_single_resume,
+)
 
-from app.models.models import db, CandidateResume, JobDescription, ResumeMatch, Team
-
+logger = logging.getLogger(__name__)
 
 hr_bp = Blueprint('hr', __name__)
 
 
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-else:
-    print("Warning: GEMINI_API_KEY not found in environment variables")
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-generation_config = {
-    "temperature": 0.7,
-    "top_p": 0.8,
-    "top_k": 40,
-    "max_output_tokens": 8192,
-}
-
-_working_model_name = None
-
-
-# ---------------------------------------------------------------------------
-# LLM helpers (Gemini + Groq fallback)
-# ---------------------------------------------------------------------------
-
-def _get_gemini_model(generation_cfg: Optional[dict] = None):
-    """Get a working Gemini model, trying different model names."""
-    global _working_model_name
-
-    if not generation_cfg:
-        generation_cfg = {}
-
-    # If we already found a working model, use it
-    if _working_model_name:
-        try:
-            return genai.GenerativeModel(
-                model_name=_working_model_name,
-                generation_config=generation_cfg,
-            )
-        except Exception:
-            # Model name might have changed, reset cache
-            _working_model_name = None
-
-    # Try gemini-2.5-flash first (direct)
-    try:
-        model = genai.GenerativeModel(
-            model_name='gemini-2.5-flash',
-            generation_config=generation_cfg,
-        )
-        _working_model_name = 'gemini-2.5-flash'
-        print("Using Gemini model: gemini-2.5-flash")
-        return model
-    except Exception as e:
-        print(f"gemini-2.5-flash not available, trying alternatives: {e}")
-
-    # Try to list available models first (most reliable)
-    try:
-        available_models = genai.list_models()
-        generate_models = [
-            m.name
-            for m in available_models
-            if 'generateContent' in m.supported_generation_methods
-        ]
-        if generate_models:
-            preferred_order = [
-                'gemini-2.5-flash',
-                'models/gemini-2.5-flash',
-                'gemini-2.5-pro',
-                'models/gemini-2.5-pro',
-                'gemini-1.5-pro',
-                'models/gemini-1.5-pro',
-                'gemini-1.5-flash',
-                'models/gemini-1.5-flash',
-                'gemini-pro',
-                'models/gemini-pro',
-            ]
-            for preferred in preferred_order:
-                for available in generate_models:
-                    if preferred in available or available.endswith(
-                        preferred.replace('models/', '')
-                    ):
-                        _working_model_name = available
-                        print(f"Using Gemini model: {available}")
-                        return genai.GenerativeModel(
-                            model_name=available,
-                            generation_config=generation_cfg,
-                        )
-
-            _working_model_name = generate_models[0]
-            print(f"Using first available Gemini model: {generate_models[0]}")
-            return genai.GenerativeModel(
-                model_name=generate_models[0],
-                generation_config=generation_cfg,
-            )
-    except Exception as e:
-        print(f"Could not list models: {e}")
-
-    # Fallback: try common names
-    model_names = [
-        'gemini-2.5-flash',
-        'models/gemini-2.5-flash',
-        'gemini-2.5-pro',
-        'models/gemini-2.5-pro',
-        'gemini-pro',
-        'models/gemini-pro',
-        'gemini-1.5-pro',
-        'models/gemini-1.5-pro',
-        'gemini-1.5-flash',
-        'models/gemini-1.5-flash',
-    ]
-
-    last_error: Optional[Exception] = None
-    for model_name in model_names:
-        try:
-            model = genai.GenerativeModel(
-                model_name=model_name,
-                generation_config=generation_cfg,
-            )
-            _working_model_name = model_name
-            print(f"Using Gemini model: {model_name}")
-            return model
-        except Exception as e:
-            last_error = e
-            continue
-
-    raise ValueError(
-        f"No working Gemini model found. Last error: {last_error}. "
-        "Please check your API key and model availability."
-    )
-
-
-def _generate_with_groq(
-    prompt: str,
-    max_tokens: int = 1024,
-    temperature: float = 0.7,
-    top_p: float = 0.8,
-) -> str:
-    """Fallback to Groq if Gemini is unavailable or fails."""
-    if not GROQ_API_KEY:
-        print("GROQ_API_KEY is not configured.")
-        return ""
-
-    try:
-        client = OpenAI(
-            api_key=GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1",
-        )
-
-        response = client.responses.create(
-            input=prompt,
-            model="openai/gpt-oss-20b",
-            max_output_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-        )
-
-        text = getattr(response, "output_text", "") or ""
-        return text.strip()
-    except Exception as exc:
-        print(f"Groq fallback failed: {exc}")
-        return ""
-
-
-def _generate_llm_text(
-    prompt: str,
-    max_tokens: int = 1024,
-    temperature: float = 0.7,
-    top_p: float = 0.8,
-) -> str:
-    """Try Gemini first, then Groq, returning plain text."""
-    text = ""
-
-    # Gemini path
-    try:
-        if GEMINI_API_KEY:
-            model_cfg = {
-                "temperature": temperature,
-                "top_p": top_p,
-                "max_output_tokens": max_tokens,
-            }
-            model = _get_gemini_model(model_cfg)
-            response = model.generate_content(prompt)
-            text = (response.text or "").strip()
-    except Exception as exc:
-        print(f"Gemini text generation failed: {exc}")
-        text = ""
-
-    # Groq fallback
-    if not text:
-        text = _generate_with_groq(
-            prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-        )
-
-    return text.strip()
-
-
-def _generate_llm_json(
-    prompt: str,
-    max_tokens: int = 1024,
-    temperature: float = 0.0,
-    top_p: float = 0.0,
-) -> Dict:
-    """
-    Try Gemini first, then Groq, and parse result as JSON.
-    Assumes the prompt strictly asks for JSON.
-    """
-    raw = _generate_llm_text(
-        prompt,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        top_p=top_p,
-    )
-    if not raw:
-        raise RuntimeError("Empty LLM response.")
-
-    # Strip common code fences
-    cleaned = re.sub(r"```json\n?", "", raw)
-    cleaned = re.sub(r"```\n?", "", cleaned)
-    cleaned = cleaned.strip()
-
-    try:
-        return json.loads(cleaned)
-    except Exception as exc:
-        print(f"Failed to parse LLM JSON: {exc} | raw={cleaned[:200]}")
-        raise
-
-
-# ---------------------------------------------------------------------------
-# Helper Functions
-# ---------------------------------------------------------------------------
-
-def extract_text_from_resume(file_content: bytes, filename: str) -> str:
-    """Extract text from resume file. Supports PDF, DOCX, TXT."""
-    try:
-        if filename.lower().endswith('.pdf'):
-            pdf_file = BytesIO(file_content)
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
-            text = ''
-            for page in pdf_reader.pages:
-                page_text = page.extract_text() or ''
-                text += page_text
-            return text
-        elif filename.lower().endswith('.docx'):
-            from docx import Document
-            doc_file = BytesIO(file_content)
-            doc = Document(doc_file)
-            return '\n'.join(para.text for para in doc.paragraphs)
-        elif filename.lower().endswith('.txt'):
-            return file_content.decode('utf-8', errors='ignore')
-        else:
-            return file_content.decode('utf-8', errors='ignore')
-    except Exception as e:
-        print(f"Error extracting text: {str(e)}")
-        return ""
-
-
-def extract_resume_data_gemini(resume_text: str) -> Dict:
-    """Use LLM (Gemini + Groq fallback) to extract structured data from resume text."""
-    prompt = f"""
-Extract the following information from this resume in JSON format. 
-Return ONLY valid JSON with these exact fields:
-{{
-    "name": "full name",
-    "email": "email address",
-    "phone": "phone number",
-    "skills": ["skill1", "skill2", ...],
-    "experience": [
-        {{
-            "company": "company name",
-            "role": "job title",
-            "duration": "years or date range",
-            "responsibilities": "brief description"
-        }}
-    ],
-    "education": [
-        {{
-            "institution": "university/school name",
-            "degree": "degree type",
-            "field": "field of study",
-            "year": "graduation year"
-        }}
-    ],
-    "summary": "brief professional summary",
-    "total_experience": number of years as a float,
-    "current_role": "current job title",
-    "current_company": "current company name",
-    "gender": "Male/Female/Other if inferable from name or content"
-}}
-
-Resume Text:
-{resume_text}
-
-Return ONLY the JSON object, no additional text.
-""".strip()
-
-    try:
-        data = _generate_llm_json(
-            prompt,
-            max_tokens=1200,
-            temperature=0.0,
-            top_p=0.0,
-        )
-        return data
-    except Exception as e:
-        print(f"Error in resume data extraction: {str(e)}")
-        raise
-
-
-def generate_resume_summary_gemini(resume_text: str) -> str:
-    """Generate a concise summary of the resume using Gemini + Groq fallback."""
-    prompt = f"""
-Provide a concise professional summary (2-3 sentences) of this resume focusing on:
-- Key qualifications
-- Years of experience
-- Main skills or expertise
-- Current or most recent role
-
-Resume Text:
-{resume_text}
-
-Summary:
-""".strip()
-
-    try:
-        summary = _generate_llm_text(
-            prompt,
-            max_tokens=256,
-            temperature=0.3,
-            top_p=0.8,
-        )
-        return summary or "Resume summary not available"
-    except Exception as e:
-        print(f"Error generating summary: {str(e)}")
-        return "Unable to generate summary"
-
-
-def match_resume_to_jd_gemini(resume_data: Dict, jd_data: Dict) -> Dict:
-    """Use LLM to match a resume to job description and return score + reasoning."""
-    resume_str = json.dumps(resume_data, indent=2)
-    jd_str = json.dumps(jd_data, indent=2)
-
-    prompt = f"""
-Analyze how well this candidate matches the job description. 
-Return ONLY a JSON object with these exact fields:
-{{
-    "match_score": numerical score 0-100,
-    "reasoning": "detailed explanation of match"
-}}
-
-Candidate Resume:
-{resume_str}
-
-Job Description:
-{jd_str}
-
-Consider:
-- Skills overlap
-- Experience level
-- Education requirements
-- Role relevance
-- Cultural fit indicators
-
-Return ONLY the JSON object, no additional text.
-""".strip()
-
-    try:
-        match_data = _generate_llm_json(
-            prompt,
-            max_tokens=800,
-            temperature=0.0,
-            top_p=0.0,
-        )
-        match_data['match_score'] = float(match_data.get('match_score', 0.0))
-        return match_data
-    except Exception as e:
-        print(f"Error in resume-JD matching: {str(e)}")
-        raise
-
-
-def infer_gender_from_name(name: str) -> Optional[str]:
-    """Infer gender from name using LLM (Gemini + Groq)."""
-    if not name:
-        return None
-
-    prompt = (
-        f"From the name '{name}', infer the most likely gender. "
-        "Return only one word: Male, Female, or Other"
-    )
-
-    try:
-        text = _generate_llm_text(
-            prompt,
-            max_tokens=16,
-            temperature=0.0,
-            top_p=0.0,
-        )
-        gender = text.strip()
-        if gender in ['Male', 'Female', 'Other']:
-            return gender
-    except Exception as e:
-        print(f"Error inferring gender from name: {str(e)}")
-    return None
-
-
-# ---------------------------------------------------------------------------
-# API Routes / Handlers
-# ---------------------------------------------------------------------------
-
-def process_single_resume(file_content: bytes, filename: str, source: str = 'Manual') -> Dict:
-    """
-    Process a single resume file and return candidate data.
-    This is extracted for reuse in bulk upload.
-    """
-    resume_text = extract_text_from_resume(file_content, filename)
-
-    if not resume_text or len(resume_text.strip()) < 50:
-        raise ValueError('Unable to extract meaningful content from file')
-
-    extracted_data = extract_resume_data_gemini(resume_text)
-    summary = generate_resume_summary_gemini(resume_text)
-
-    if 'gender' not in extracted_data or not extracted_data['gender']:
-        if 'name' in extracted_data:
-            extracted_data['gender'] = infer_gender_from_name(extracted_data['name'])
-
-    candidate_data = {
-        'filename': filename,
-        'name': extracted_data.get('name'),
-        'email': extracted_data.get('email'),
-        'phone': extracted_data.get('phone'),
-        'skills': json.dumps(extracted_data.get('skills', [])),
-        'experience': json.dumps(extracted_data.get('experience', [])),
-        'education': json.dumps(extracted_data.get('education', [])),
-        'summary': summary,
-        'total_experience': extracted_data.get('total_experience'),
-        'current_role': extracted_data.get('current_role'),
-        'current_company': extracted_data.get('current_company'),
-        'source': source,
-        'status': 'New',
-        'gender': extracted_data.get('gender'),
-        'resume_text': resume_text,
-    }
-
-    return candidate_data
+MAX_RESUME_SIZE = 16 * 1024 * 1024  # 16 MB
 
 
 @hr_bp.route('/hr/resume/upload', methods=['POST'])
@@ -484,8 +41,14 @@ def upload_resume():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'Invalid file type. Supported: PDF, DOCX, TXT'}), 400
+
     filename = secure_filename(file.filename)
     file_content = file.read()
+    if len(file_content) > MAX_RESUME_SIZE:
+        return jsonify({'error': 'File size exceeds maximum limit of 16MB'}), 413
+
     source = request.form.get('source') or 'Manual'
 
     try:
@@ -500,9 +63,12 @@ def upload_resume():
             'candidate': candidate.to_dict(),
         }), 200
 
+    except AIUnavailableError:
+        db.session.rollback()
+        return jsonify({'error': 'AI service is not available right now'}), 503
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Failed to process resume: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to process resume: {e!s}'}), 500
 
 
 @hr_bp.route('/hr/resume/bulk-upload', methods=['POST'])
@@ -534,12 +100,17 @@ def bulk_upload_resumes():
 
     def process_file(file):
         try:
+            if not allowed_file(file.filename):
+                return {'success': False, 'filename': file.filename, 'error': 'Invalid file type'}
             filename = secure_filename(file.filename)
             file_content = file.read()
+            if len(file_content) > MAX_RESUME_SIZE:
+                return {'success': False, 'filename': filename, 'error': 'File exceeds 16MB limit'}
             candidate_data = process_single_resume(file_content, filename, source)
             return {'success': True, 'filename': filename, 'data': candidate_data}
         except Exception as e:
             return {'success': False, 'filename': file.filename, 'error': str(e)}
+
 
     candidates_to_add = []
 
@@ -580,7 +151,7 @@ def bulk_upload_resumes():
     except Exception as e:
         db.session.rollback()
         return jsonify({
-            'error': f'Failed to save candidates to database: {str(e)}',
+            'error': f'Failed to save candidates to database: {e!s}',
             'results': results,
         }), 500
 
@@ -609,7 +180,7 @@ def summarize_resume(resume_id):
         }), 200
 
     except Exception as e:
-        return jsonify({'error': f'Failed to generate summary: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to generate summary: {e!s}'}), 500
 
 
 @hr_bp.route('/hr/resumes', methods=['GET'])
@@ -751,8 +322,10 @@ def match_candidates_to_jd():
                 'reasoning': match_result['reasoning'],
             })
 
+        except AIUnavailableError:
+            raise
         except Exception as e:
-            print(f"Error matching candidate {candidate.id}: {str(e)}")
+            logger.warning("Error matching candidate %s: %s", candidate.id, e)
             continue
 
     db.session.commit()
