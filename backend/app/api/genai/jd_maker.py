@@ -1,18 +1,12 @@
 import json
-import os
 import re
 from io import BytesIO
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
 from flask import Blueprint, current_app, jsonify, request, send_file
 from flask_security import auth_required, current_user
 
-# Groq (OpenAI-compatible) client
-from openai import OpenAI
-
-from app.models.models import db, JobDescription
-
+from app.models.models import JobDescription, db
+from app.services.ai import AIUnavailableError, generate_text
 
 jd_bp = Blueprint('jdmaker', __name__)
 
@@ -21,49 +15,7 @@ class JDMakerService:
     """GenAI-powered professional job description generator."""
 
     def __init__(self):
-        self._client_ready = False
-        self._generator_model_name = 'gemini-2.5-flash'
-        self._model = None
-
-    # ------------------ LLM client helpers ------------------ #
-
-    def _ensure_client(self):
-        if self._client_ready:
-            return
-        api_key = os.getenv('GEMINI_API_KEY') or current_app.config.get('GEMINI_API_KEY')
-        if not api_key:
-            # This will trigger Groq fallback
-            raise RuntimeError('GEMINI_API_KEY is not configured.')
-        genai.configure(api_key=api_key)
-        self._model = genai.GenerativeModel(self._generator_model_name)
-        self._client_ready = True
-
-    def _generate_with_groq(self, prompt: str) -> str:
-        """
-        Fallback to Groq if Gemini is unavailable or fails.
-        Requires GROQ_API_KEY in environment or Flask config.
-        """
-        api_key = os.getenv('GROQ_API_KEY') or current_app.config.get('GROQ_API_KEY')
-        if not api_key:
-            current_app.logger.error("GROQ_API_KEY is not configured.")
-            return ""
-
-        try:
-            client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.groq.com/openai/v1",
-            )
-
-            response = client.responses.create(
-                input=prompt,
-                model="openai/gpt-oss-20b",
-            )
-
-            text = getattr(response, "output_text", "") or ""
-            return text.strip()
-        except Exception as exc:
-            current_app.logger.exception("JD Groq fallback failed: %s", exc)
-            return ""
+        pass
 
     def _generate_llm_answer(
         self,
@@ -72,29 +24,8 @@ class JDMakerService:
         top_p: float = 0.8,
         max_tokens: int = 1200,
     ) -> str:
-        """Try Gemini first, then Groq."""
-        text = ""
-        try:
-            self._ensure_client()
-            response = self._model.generate_content(
-                prompt,
-                generation_config=GenerationConfig(
-                    temperature=temperature,
-                    top_p=top_p,
-                    candidate_count=1,
-                    max_output_tokens=max_tokens,
-                ),
-            )
-            text = (response.text or "").strip()
-        except Exception as exc:
-            current_app.logger.exception("JD Gemini generation failed: %s", exc)
-
-        if not text:
-            groq_text = self._generate_with_groq(prompt)
-            if groq_text:
-                return groq_text
-
-        return text
+        """Call AI service with prompt."""
+        return generate_text(prompt, max_tokens=max_tokens)
 
     # ------------------ Prompt building / sanitising ------------------ #
 
@@ -191,12 +122,12 @@ class JDMakerService:
                 if re.fullmatch(r"\|\s*-+\s*(\|\s*-+\s*)+\|", stripped):
                     continue
                 cols = [c.strip() for c in stripped.strip("|").split("|")]
-                stripped = " – ".join([c for c in cols if c])
+                stripped = " - ".join([c for c in cols if c])
 
             out_lines.append(stripped)
 
         # Collapse extra blank lines
-        result = "\n".join(l for l in out_lines if l is not None)
+        result = "\n".join(line for line in out_lines if line is not None)
         return result.strip()
 
     # ------------------ Public JD generation ------------------ #
@@ -262,12 +193,13 @@ service = JDMakerService()
 
 def _generate_jd_pdf(title: str, description: str) -> BytesIO:
     """Generate a professional PDF from a job description."""
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
-    from reportlab.lib.units import inch
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
     import unicodedata
+
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
     # Helper to normalise / clean problematic Unicode so we don't see boxes/locks
     def _clean_text(s: str) -> str:
@@ -426,6 +358,8 @@ def generate_jd():
             'skills_required': generated['skills_required'],
             'experience_required': generated['experience_required'],
         })
+    except AIUnavailableError:
+        return jsonify({'error': 'AI service is not available right now'}), 503
     except Exception as error:
         current_app.logger.exception('JD generation failed: %s', error)
         return jsonify({'error': str(error)}), 500

@@ -1,14 +1,10 @@
 import os
-import textwrap
 from io import BytesIO
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
 from flask import Blueprint, current_app, jsonify, request, send_file
 from flask_security import auth_required, current_user
 
-# NEW: Groq (OpenAI-compatible) client
-from openai import OpenAI
+from app.services.ai import AIRateLimitError, AIUnavailableError, generate_text
 
 career_bp = Blueprint('careerpath', __name__)
 
@@ -21,19 +17,7 @@ class CareerPathService:
     """
 
     def __init__(self):
-        self._client_ready = False
-        self._generator_model_name = 'gemini-2.0-flash'
-
-    def _ensure_client(self):
-        if self._client_ready:
-            return
-        api_key = os.getenv('GEMINI_API_KEY') or current_app.config.get('GEMINI_API_KEY')
-        if not api_key:
-            # This will be caught and will trigger Groq fallback
-            raise RuntimeError('GEMINI_API_KEY is not configured.')
-        genai.configure(api_key=api_key)
-        self._model = genai.GenerativeModel(self._generator_model_name)
-        self._client_ready = True
+        pass
 
     def _build_prompt(self, payload: dict) -> str:
         parts = []
@@ -75,72 +59,18 @@ class CareerPathService:
         parts.append(instructions)
         return '\n'.join(parts)
 
-    # NEW: Groq fallback implementation (using the snippet you provided)
-    def _generate_with_groq(self, prompt: str) -> str:
-        """
-        Fallback to Groq if Gemini is unavailable or fails.
-        Requires GROQ_API_KEY in environment or Flask config.
-        """
-        api_key = (
-            os.getenv('GROQ_API_KEY')
-            or current_app.config.get('GROQ_API_KEY')
-        )
-        if not api_key:
-            current_app.logger.error("GROQ_API_KEY is not configured.")
-            return ""
-
-        try:
-            client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.groq.com/openai/v1",
-            )
-
-            response = client.responses.create(
-                input=prompt,
-                model="openai/gpt-oss-20b",
-            )
-
-            # Groq helper from your example
-            text = getattr(response, "output_text", "") or ""
-            return text.strip()
-
-        except Exception as exc:
-            current_app.logger.exception("CareerPath Groq fallback failed: %s", exc)
-            return ""
-
     def generate_recommendation(self, payload: dict) -> str:
         prompt = self._build_prompt(payload)
-
-        # Try Gemini first
-        text = ''
         try:
-            self._ensure_client()
-            response = self._model.generate_content(
-                prompt,
-                generation_config=GenerationConfig(
-                    temperature=0.2,
-                    top_p=0.9,
-                    candidate_count=1,
-                    max_output_tokens=700,
-                ),
-            )
-            text = (response.text or '').strip()
-        except Exception as exc:  # pragma: no cover - fail gracefully
-            current_app.logger.exception('CareerPath Gemini generation failed: %s', exc)
-
-        # If Gemini failed or returned empty, fall back to Groq
-        if not text:
-            groq_text = self._generate_with_groq(prompt)
-            if groq_text:
-                return groq_text
-
-            # If Groq also fails, return a friendly error
+            return generate_text(prompt, max_tokens=700)
+        except (AIUnavailableError, AIRateLimitError):
+            raise
+        except Exception as exc:
+            current_app.logger.exception('CareerPath generation failed: %s', exc)
             return (
-                'Sorry — I was unable to generate a personalised recommendation at this time. '
+                'Sorry, I was unable to generate a personalised recommendation at this time. '
                 'Please try again later.'
             )
-
-        return text
 
 
 service = CareerPathService()
@@ -148,13 +78,14 @@ service = CareerPathService()
 
 def _text_to_pdf_bytes(title: str, body: str) -> BytesIO:
     # Delayed import so reportlab requirement is optional until endpoint used
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, ListFlowable, ListItem
-    from reportlab.lib.units import inch
-    from reportlab.lib.enums import TA_LEFT
     import re
     import unicodedata
+
+    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer
 
     # --- NEW: helper to normalize & replace problematic characters ---
     def _clean_text(s: str) -> str:
@@ -437,23 +368,22 @@ def career_debug():
     info = {
         'status': 'ok',
         'gemini_key_present': bool(os.getenv('GEMINI_API_KEY') or current_app.config.get('GEMINI_API_KEY')),
-        # NEW: Groq key presence
         'groq_key_present': bool(
             os.getenv('GROQ_API_KEY') or current_app.config.get('GROQ_API_KEY')
         ),
         'reportlab_importable': True,
-        'google_generativeai_importable': True,
+        'google_genai_importable': True,
     }
     # Check imports without failing the endpoint
     try:
-        import reportlab  # type: ignore
+        pass  # type: ignore
     except Exception:
         info['reportlab_importable'] = False
 
     try:
-        # google.generativeai already imported at module import time but double-check
-        _ = genai  # noqa: F841
+        from google import genai  # type: ignore
+        _ = genai
     except Exception:
-        info['google_generativeai_importable'] = False
+        info['google_genai_importable'] = False
 
     return jsonify(info)
