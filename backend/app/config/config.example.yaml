@@ -1,23 +1,28 @@
-# Copy to config.yaml (git-ignored). Values in ${...} are read from environment variables / backend/.env.
+# Copy to config.yaml (git-ignored). Environment variables (SECRET_KEY, DATABASE_URL, GEMINI_API_KEY) override these.
+env:
+  secret_key: change-me
+  debug: false
+
 database:
-  url: ${DATABASE_URL}
+  url: sqlite:///app.db
 
-gemini:
-  api_key: ${GEMINI_API_KEY}
-  embedding_model: text-embedding-004
-  generation_model: gemini-2.0-flash
+security:
+  password_salt: change-me-too
+  registerable: false
+  send_register_email: false
+  username_enable: false
+  username_required: false
 
-default_users:
-  hr:
-    email: ${DEFAULT_HR_EMAIL}
-    password: ${DEFAULT_HR_PASSWORD}
-  manager:
-    email: ${DEFAULT_MANAGER_EMAIL}
-    password: ${DEFAULT_MANAGER_PASSWORD}
-  employee:
-    email: ${DEFAULT_EMPLOYEE_EMAIL}
-    password: ${DEFAULT_EMPLOYEE_PASSWORD}
-
-scheduler:
-  timezone: Asia/Kolkata
-  offboarding_reminders_cron: "0 9 * * *"
+# Demo accounts created on first run
+hr:
+  email: hr@example.com
+  username: hr
+  password: hr123
+manager:
+  email: manager@example.com
+  username: manager
+  password: manager123
+employee:
+  email: employee@example.com
+  username: employee
+  password: employee123
