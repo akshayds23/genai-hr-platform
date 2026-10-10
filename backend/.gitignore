@@ -14,5 +14,7 @@ backend/scripts
 app/config/config.yaml
 .env
 instance
+*.db
+*.sqlite3
 
 /.qodo

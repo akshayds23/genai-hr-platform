@@ -2,11 +2,6 @@
 node_modules
 /dist
 
-# assets
-frontend/src/assets/employee.png
-frontend/src/assets/Dashboard_person.png
-frontend/src/assets/*
-src/assets/*
 
 # local env files
 .env.local

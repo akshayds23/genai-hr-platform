@@ -6,7 +6,10 @@
 # Python
 __pycache__/
 *.py[oc]
-.venv/
+.venv*/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Node
 node_modules/
@@ -20,3 +23,7 @@ backend/instance/
 *.sqlite3
 backend/app/config/config.yaml
 *.log
+
+# Agent work files
+FIX_PLAN.md
+REVIEW_NOTES.md
