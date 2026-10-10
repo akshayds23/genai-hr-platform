@@ -4,6 +4,8 @@ An HR management platform with AI built in: employees ask an HR chatbot that ans
 
 Built as the Software Engineering project (Team 24) of the IIT Madras Diploma in Data Science.
 
+![Employee asks the HR chatbot and escalates to HR](docs/screenshots/employee-chatbot.png)
+
 ## My role
 
 I was the backend developer and project manager. I built **the entire backend** (Flask APIs, authentication and roles, database models, the Gemini RAG chatbot, resume screening, JD generation, career planning, PDF generation and scheduled jobs) and **a large part of the Vue frontend**. I also planned the sprints and kept the team's work on track.
@@ -27,6 +29,18 @@ I was the backend developer and project manager. I built **the entire backend** 
 - Manage the chatbot's knowledge base: FAQs, or Q&A extracted from uploaded PDF and text files
 - Answer escalated questions (answers can be added back to the knowledge base)
 - Analytics on headcount, leave and the applicant pipeline; letter templates; offboarding automation
+
+## Screenshots
+
+Taken from a local run with the built-in demo data. All people and companies in it are fictional.
+
+| | |
+|---|---|
+| ![Landing page](docs/screenshots/landing.png) Landing page | ![Login with demo accounts](docs/screenshots/login.png) Login with one-click demo accounts |
+| ![Employee dashboard](docs/screenshots/employee-overview.png) Employee dashboard | ![Leave management](docs/screenshots/employee-leave.png) Leave balance, requests and analytics |
+| ![Manager dashboard](docs/screenshots/manager-overview.png) Manager dashboard | ![HR overview](docs/screenshots/hr-overview.png) HR overview |
+| ![Escalated questions](docs/screenshots/hr-questions.png) HR answers questions the chatbot escalated | ![Resume database](docs/screenshots/hr-resumes.png) Resume upload and AI role matching |
+| ![JD maker](docs/screenshots/hr-jd-maker.png) AI job description maker | |
 
 ## How the AI parts work
 
