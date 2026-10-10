@@ -2,28 +2,20 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime
-from typing import Iterable, Optional
 
-from flask import Blueprint, jsonify, request
-from flask_security import auth_required, current_user
 from sqlalchemy import func, or_
 
-from app.api.genai.B_HRchatbot import hr_chatbot_service
 from app.models.models import (
     Conversation,
     LeaveRequest,
     Message,
     ProjectAnnouncement,
+    Team,
     TeamEvent,
     User,
-    Team,
-    db,
 )
 from app.services.leave_balance import build_balance_snapshot
 from app.services.notifications import recent_notifications_for_user, serialize_notification
-
-
-manager_dashboard_bp = Blueprint('manager_dashboard', __name__)
 
 ANNUAL_LEAVE_ALLOWANCE = 20
 MAX_NOTIFICATIONS = 5
@@ -35,17 +27,16 @@ MAX_RECENT_LEAVES = 5
 DEFAULT_TEAM_BIRTHDAY_WINDOW = 30
 MAX_TEAM_BIRTHDAY_LOOKAHEAD = 90
 
-# 🔥 NEW: Leave types that must NOT appear in dashboard leave logic
 OFFBOARDING_LEAVE_TYPES = {'resignation', 'offboarding'}
 
 
-def _ensure_manager_access() -> bool:
-    if getattr(current_user, 'is_admin', lambda: False)():
+def ensure_manager_access(user: User) -> bool:
+    if getattr(user, 'is_admin', lambda: False)():
         return True
-    return getattr(current_user, 'employment_role', '').lower() == 'manager'
+    return getattr(user, 'employment_role', '').lower() == 'manager'
 
 
-def _safe_next_birthday(birth_date: date, today: date) -> date:
+def safe_next_birthday(birth_date: date, today: date) -> date:
     try:
         candidate = date(today.year, birth_date.month, birth_date.day)
     except ValueError:
@@ -60,7 +51,7 @@ def _safe_next_birthday(birth_date: date, today: date) -> date:
     return candidate
 
 
-def _display_name(user: Optional[User]) -> str:
+def display_name(user: User | None) -> str:
     if not user:
         return 'Team member'
     parts = [user.first_name, user.last_name]
@@ -68,7 +59,7 @@ def _display_name(user: Optional[User]) -> str:
     return ' '.join(part for part in parts if part) or fallback
 
 
-def _collect_team_birthdays(team: Optional[Team], window_days: int = DEFAULT_TEAM_BIRTHDAY_WINDOW) -> dict:
+def collect_team_birthdays(team: Team | None, window_days: int = DEFAULT_TEAM_BIRTHDAY_WINDOW) -> dict:
     window_days = max(1, min(window_days, MAX_TEAM_BIRTHDAY_LOOKAHEAD))
     today = date.today()
 
@@ -92,13 +83,13 @@ def _collect_team_birthdays(team: Optional[Team], window_days: int = DEFAULT_TEA
     for member in members:
         if not member.birth_date:
             continue
-        next_birthday = _safe_next_birthday(member.birth_date, today)
+        next_birthday = safe_next_birthday(member.birth_date, today)
         days_until = (next_birthday - today).days
         if days_until < 0 or days_until > window_days:
             continue
         upcoming.append({
             'employee_id': member.id,
-            'employee_name': _display_name(member),
+            'employee_name': display_name(member),
             'birth_date': member.birth_date.isoformat(),
             'next_birthday': next_birthday.isoformat(),
             'days_until': days_until,
@@ -116,7 +107,7 @@ def _collect_team_birthdays(team: Optional[Team], window_days: int = DEFAULT_TEA
     }
 
 
-def _build_profile_snapshot(user: User, today: date) -> dict:
+def build_profile_snapshot(user: User, today: date) -> dict:
     full_name_parts = [part for part in (user.first_name, user.last_name) if part]
     full_name = ' '.join(full_name_parts) or (user.username or user.email)
 
@@ -165,27 +156,24 @@ def _build_profile_snapshot(user: User, today: date) -> dict:
     }
 
 
-def _resolve_user_team(user: User) -> Team | None:
+def resolve_user_team(user: User) -> Team | None:
     """Return the team associated with the user or the team they manage."""
-    # For managers, prioritize teams they manage over teams they're members of
     if getattr(user, 'employment_role', '').lower() == 'manager':
         managed_team = Team.query.filter_by(manager_id=user.id).first()
         if managed_team:
             return managed_team
-    
-    # For non-managers or managers without a managed team, return their member team
+
     team: Team | None = None
     if user.team_id:
         team = Team.query.get(user.team_id)
     if team:
         return team
-    
-    # Fallback: check if they manage any team
+
     return Team.query.filter_by(manager_id=user.id).first()
 
 
-def _collect_team_overview(user: User, *, team: Team | None = None) -> dict:
-    team = team or _resolve_user_team(user)
+def collect_team_overview(user: User, *, team: Team | None = None) -> dict:
+    team = team or resolve_user_team(user)
     team_name = team.name if team else user.team_number
 
     base = {
@@ -210,7 +198,7 @@ def _collect_team_overview(user: User, *, team: Team | None = None) -> dict:
     query = (
         User.query
         .filter(User.team_id == team.id)
-        .filter(User.active.is_(True))          # 🔥 key line: exclude offboarded users
+        .filter(User.active.is_(True))
         .order_by(User.first_name.asc(), User.last_name.asc())
     )
 
@@ -227,7 +215,6 @@ def _collect_team_overview(user: User, *, team: Team | None = None) -> dict:
             'is_self': member.id == user.id,
         })
 
-    # If no members found and the user is the manager, add the manager to show at least themselves
     if not members and team.manager_id == user.id:
         full_name_parts = [part for part in (user.first_name, user.last_name) if part]
         members.append({
@@ -241,7 +228,7 @@ def _collect_team_overview(user: User, *, team: Team | None = None) -> dict:
         total_members = max(total_members, 1)
 
     birthday_window = DEFAULT_TEAM_BIRTHDAY_WINDOW
-    birthdays = _collect_team_birthdays(team, birthday_window)
+    birthdays = collect_team_birthdays(team, birthday_window)
 
     return {
         'team_number': team_name,
@@ -255,11 +242,11 @@ def _collect_team_overview(user: User, *, team: Team | None = None) -> dict:
     }
 
 
-def _build_leave_summary(user_id: int) -> dict:
+def build_leave_summary(user_id: int) -> dict:
     rows = (
         LeaveRequest.query
         .filter(LeaveRequest.user_id == user_id)
-        .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))   # 🔥 FIX ADDED
+        .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))
         .with_entities(LeaveRequest.status, func.count(LeaveRequest.id))
         .group_by(LeaveRequest.status)
         .all()
@@ -276,7 +263,7 @@ def _build_leave_summary(user_id: int) -> dict:
     }
 
 
-def _build_team_leave_summary(team_id: int | None, *, exclude_user_id: int | None = None) -> dict:
+def build_team_leave_summary(team_id: int | None, *, exclude_user_id: int | None = None) -> dict:
     if not team_id:
         return {'total': 0, 'by_status': {}}
 
@@ -284,7 +271,7 @@ def _build_team_leave_summary(team_id: int | None, *, exclude_user_id: int | Non
         LeaveRequest.query
         .join(User, User.id == LeaveRequest.user_id)
         .filter(User.team_id == team_id)
-        .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))   # 🔥 FIX ADDED
+        .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))
     )
     if exclude_user_id is not None:
         query = query.filter(LeaveRequest.user_id != exclude_user_id)
@@ -302,15 +289,14 @@ def _build_team_leave_summary(team_id: int | None, *, exclude_user_id: int | Non
     }
 
 
-def _collect_pending_team_leaves(user: User, *, team_id: int | None = None) -> list[dict]:
+def collect_pending_team_leaves(user: User, *, team_id: int | None = None, status_param: str = 'pending') -> list[dict]:
     if team_id is None:
-        team = _resolve_user_team(user)
+        team = resolve_user_team(user)
         team_id = team.id if team else None
     if not team_id:
         return []
 
-    status_param = (request.args.get('status') or 'pending').lower()
-    statuses = {value.strip().lower() for value in status_param.split(',') if value.strip()}
+    statuses = {value.strip().lower() for value in (status_param or 'pending').split(',') if value.strip()}
     if not statuses:
         statuses = {'pending'}
 
@@ -319,7 +305,7 @@ def _collect_pending_team_leaves(user: User, *, team_id: int | None = None) -> l
         .join(User, LeaveRequest.user_id == User.id)
         .filter(User.team_id == team_id)
         .filter(LeaveRequest.status.in_(statuses))
-        .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))   # 🔥 FIX ADDED
+        .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))
         .order_by(LeaveRequest.start_date.asc())
     )
 
@@ -349,7 +335,7 @@ def _collect_pending_team_leaves(user: User, *, team_id: int | None = None) -> l
     return leaves
 
 
-def _load_notifications(user_id: int) -> list[dict]:
+def load_notifications(user_id: int) -> list[dict]:
     notifications = recent_notifications_for_user(
         user_id,
         limit=MAX_NOTIFICATIONS,
@@ -361,7 +347,7 @@ def _load_notifications(user_id: int) -> list[dict]:
     ]
 
 
-def _build_chatbot_summary(user_id: int) -> dict:
+def build_chatbot_summary(user_id: int) -> dict:
     latest_conversation = (
         Conversation.query
         .filter(Conversation.user_id == user_id)
@@ -400,11 +386,18 @@ def _build_chatbot_summary(user_id: int) -> dict:
     }
 
 
-def _generate_month_series(months: int = ANALYTICS_MONTH_SPAN) -> list[dict]:
+def shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
+    month_total = month + offset
+    year += (month_total - 1) // 12
+    month = ((month_total - 1) % 12) + 1
+    return year, month
+
+
+def generate_month_series(months: int = ANALYTICS_MONTH_SPAN) -> list[dict]:
     today = date.today()
     series: list[dict] = []
     for offset in range(months - 1, -1, -1):
-        year, month = _shift_month(today.year, today.month, -offset)
+        year, month = shift_month(today.year, today.month, -offset)
         label = date(year, month, 1).strftime('%b')
         key = f'{year}-{month:02d}'
         series.append({
@@ -417,15 +410,8 @@ def _generate_month_series(months: int = ANALYTICS_MONTH_SPAN) -> list[dict]:
     return series
 
 
-def _shift_month(year: int, month: int, offset: int) -> tuple[int, int]:
-    month_total = month + offset
-    year += (month_total - 1) // 12
-    month = ((month_total - 1) % 12) + 1
-    return year, month
-
-
-def _build_leave_analytics(user: User, team_summary: dict) -> dict:
-    series = _generate_month_series()
+def build_leave_analytics(user: User, team_summary: dict) -> dict:
+    series = generate_month_series()
     indexed = {entry['key']: entry for entry in series}
 
     oldest_key = series[0]['key']
@@ -456,10 +442,25 @@ def _build_leave_analytics(user: User, team_summary: dict) -> dict:
     }
 
 
-def _load_upcoming_events(team_id: int | None) -> list[dict]:
+def format_event_time(event: TeamEvent) -> str:
+    start = event.start_datetime
+    end = event.end_datetime
+
+    if not start:
+        return ''
+
+    if end:
+        if start.date() == end.date():
+            return f"{start.strftime('%I:%M %p')} - {end.strftime('%I:%M %p')}"
+        return f"{start.strftime('%b %d %I:%M %p')} - {end.strftime('%b %d %I:%M %p')}"
+
+    return start.strftime('%b %d %I:%M %p')
+
+
+def load_upcoming_events(team_id: int | None) -> list[dict]:
     now = datetime.utcnow()
     query = TeamEvent.query.filter(TeamEvent.start_datetime >= now)
-    
+
     team_name = None
     if team_id:
         team = Team.query.get(team_id)
@@ -480,31 +481,16 @@ def _load_upcoming_events(team_id: int | None) -> list[dict]:
             'title': event.title,
             'month': event.start_datetime.strftime('%b') if event.start_datetime else '',
             'date': event.start_datetime.strftime('%d') if event.start_datetime else '',
-            'time': _format_event_time(event),
+            'time': format_event_time(event),
             'location': event.location,
             'description': event.description,
         })
     return events
 
 
-def _format_event_time(event: TeamEvent) -> str:
-    start = event.start_datetime
-    end = event.end_datetime
-
-    if not start:
-        return ''
-
-    if end:
-        if start.date() == end.date():
-            return f"{start.strftime('%I:%M %p')} - {end.strftime('%I:%M %p')}"
-        return f"{start.strftime('%b %d %I:%M %p')} - {end.strftime('%b %d %I:%M %p')}"
-
-    return start.strftime('%b %d %I:%M %p')
-
-
-def _collect_team_offboarding(user: User, *, team_id: int | None = None) -> list[dict]:
+def collect_team_offboarding(user: User, *, team_id: int | None = None) -> list[dict]:
     if team_id is None:
-        team = _resolve_user_team(user)
+        team = resolve_user_team(user)
         team_id = team.id if team else None
     if not team_id:
         return []
@@ -567,7 +553,7 @@ def _collect_team_offboarding(user: User, *, team_id: int | None = None) -> list
     return items
 
 
-def _serialize_project_announcement(record: ProjectAnnouncement | None) -> dict | None:
+def serialize_project_announcement(record: ProjectAnnouncement | None) -> dict | None:
     if not record:
         return None
     return {
@@ -580,14 +566,14 @@ def _serialize_project_announcement(record: ProjectAnnouncement | None) -> dict 
     }
 
 
-def _get_manager_project_announcement(manager_id: int) -> dict | None:
+def get_manager_project_announcement(manager_id: int) -> dict | None:
     if not manager_id:
         return None
     record = ProjectAnnouncement.query.filter_by(manager_id=manager_id).first()
-    return _serialize_project_announcement(record)
+    return serialize_project_announcement(record)
 
 
-def _build_resignation_snapshot(user: User) -> dict | None:
+def build_resignation_snapshot(user: User) -> dict | None:
     if user.active:
         return None
 
@@ -601,77 +587,23 @@ def _build_resignation_snapshot(user: User) -> dict | None:
     }
 
 
-@manager_dashboard_bp.route('/manager/debug-team', methods=['GET'])
-@auth_required()
-def debug_team_info():
-    """Debug endpoint to check team information"""
-    if not _ensure_manager_access():
-        return jsonify({'error': 'Only managers or admins can access this dashboard.'}), 403
-
-    user = current_user
-    
-    # Get team info
-    user_team_id = user.team_id
-    managed_team = Team.query.filter_by(manager_id=user.id).first()
-    team_from_user_id = Team.query.get(user_team_id) if user_team_id else None
-    
-    # Get all members of the managed team if it exists
-    managed_team_members = []
-    if managed_team:
-        managed_team_members = User.query.filter(User.team_id == managed_team.id).all()
-    
-    # Get all teams the user is associated with
-    all_teams = Team.query.all()
-    
-    return jsonify({
-        'current_user': {
-            'id': user.id,
-            'name': f"{user.first_name} {user.last_name}",
-            'email': user.email,
-            'team_id': user_team_id,
-            'employment_role': user.employment_role,
-        },
-        'user_team_id': user_team_id,
-        'team_from_user_id': team_from_user_id.to_dict() if team_from_user_id else None,
-        'managed_team': managed_team.to_dict() if managed_team else None,
-        'managed_team_members': [
-            {
-                'id': member.id,
-                'name': f"{member.first_name} {member.last_name}",
-                'email': member.email,
-                'team_id': member.team_id,
-                'employment_role': member.employment_role
-            }
-            for member in managed_team_members
-        ],
-        'resolved_team': _resolve_user_team(user).to_dict() if _resolve_user_team(user) else None,
-        'team_overview': _collect_team_overview(user),
-        'all_teams': [team.to_dict() for team in all_teams]
-    })
-
-
-@manager_dashboard_bp.route('/manager/dashboard', methods=['GET'])
-@auth_required()
-def manager_dashboard():
-    if not _ensure_manager_access():
-        return jsonify({'error': 'Only managers or admins can access this dashboard.'}), 403
-
+def build_manager_dashboard_data(user: User, status_param: str = 'pending') -> dict:
     today = date.today()
-    profile = _build_profile_snapshot(current_user, today)
-    leave_summary = _build_leave_summary(current_user.id)
+    profile = build_profile_snapshot(user, today)
+    leave_summary = build_leave_summary(user.id)
     leave_balance = leave_summary.get('balance')
     leave_balance_details = leave_balance or {}
     allowance_days = leave_balance_details.get('allowance_days')
-    managed_team = _resolve_user_team(current_user)
+    managed_team = resolve_user_team(user)
     managed_team_id = managed_team.id if managed_team else None
-    team_overview = _collect_team_overview(current_user, team=managed_team)
-    exclude_self = current_user.id if getattr(current_user, 'employment_role', '').lower() == 'manager' else None
-    team_leave_summary = _build_team_leave_summary(
+    team_overview = collect_team_overview(user, team=managed_team)
+    exclude_self = user.id if getattr(user, 'employment_role', '').lower() == 'manager' else None
+    team_leave_summary = build_team_leave_summary(
         managed_team_id,
         exclude_user_id=exclude_self,
     )
-    pending_leaves = _collect_pending_team_leaves(current_user, team_id=managed_team_id)
-    team_offboarding = _collect_team_offboarding(current_user, team_id=managed_team_id)
+    pending_leaves = collect_pending_team_leaves(user, team_id=managed_team_id, status_param=status_param)
+    team_offboarding = collect_team_offboarding(user, team_id=managed_team_id)
 
     stats = [
         {
@@ -716,24 +648,21 @@ def manager_dashboard():
         }
         for leave in (
             LeaveRequest.query
-            .filter(LeaveRequest.user_id == current_user.id)
-            .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))  # 🔥 FIX ADDED
+            .filter(LeaveRequest.user_id == user.id)
+            .filter(~LeaveRequest.leave_type.in_(OFFBOARDING_LEAVE_TYPES))
             .order_by(LeaveRequest.created_at.desc())
             .limit(MAX_RECENT_LEAVES)
             .all()
         )
     ]
 
-    analytics = _build_leave_analytics(current_user, team_leave_summary)
-    notifications = _load_notifications(current_user.id)
-    chatbot_summary = _build_chatbot_summary(current_user.id)
-    upcoming_events = _load_upcoming_events(managed_team_id)
-    resignation_snapshot = _build_resignation_snapshot(current_user)
+    analytics = build_leave_analytics(user, team_leave_summary)
+    notifications = load_notifications(user.id)
+    chatbot_summary = build_chatbot_summary(user.id)
+    upcoming_events = load_upcoming_events(managed_team_id)
+    resignation_snapshot = build_resignation_snapshot(user)
 
-    if hr_chatbot_service:
-        hr_chatbot_service.ensure_profile_indexed(current_user.id)
-
-    return jsonify({
+    return {
         'profile': profile,
         'stats': stats,
         'leave_summary': leave_summary,
@@ -747,49 +676,6 @@ def manager_dashboard():
         'notifications': notifications,
         'chatbot': chatbot_summary,
         'resignation': resignation_snapshot,
-        'project_announcement': _get_manager_project_announcement(current_user.id),
+        'project_announcement': get_manager_project_announcement(user.id),
         'recent_leaves': recent_leaves,
-    })
-
-@manager_dashboard_bp.route('/manager/project-announcement', methods=['GET', 'PUT', 'DELETE'])
-@auth_required()
-def manage_project_announcement():
-    if not _ensure_manager_access():
-        return jsonify({'error': 'Only managers or admins can update the project announcement.'}), 403
-
-    manager_id = current_user.id
-
-    if request.method == 'GET':
-        return jsonify({'project_announcement': _get_manager_project_announcement(manager_id)})
-
-    if request.method == 'DELETE':
-        record = ProjectAnnouncement.query.filter_by(manager_id=manager_id).first()
-        if record:
-            db.session.delete(record)
-            db.session.commit()
-        return jsonify({'project_announcement': None})
-
-    payload = request.get_json(silent=True) or {}
-    title = (payload.get('title') or '').strip()
-    description = (payload.get('description') or '').strip()
-
-    if not title or not description:
-        return jsonify({'error': 'Title and description are required.'}), 400
-
-    record = ProjectAnnouncement.query.filter_by(manager_id=manager_id).first()
-    now = datetime.utcnow()
-
-    if not record:
-        record = ProjectAnnouncement(
-            manager_id=manager_id,
-            title=title,
-            description=description,
-        )
-        db.session.add(record)
-    else:
-        record.title = title
-        record.description = description
-    record.updated_at = now
-
-    db.session.commit()
-    return jsonify({'project_announcement': _serialize_project_announcement(record)})
+    }
