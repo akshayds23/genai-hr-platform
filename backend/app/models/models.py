@@ -1,6 +1,6 @@
-# app/models/models.py
-from flask_sqlalchemy import SQLAlchemy
+from datetime import date
 from flask_security.models import fsqla_v3 as fsqla
+from flask_sqlalchemy import SQLAlchemy
 
 # Initialize SQLAlchemy
 db = SQLAlchemy()
@@ -37,10 +37,10 @@ class User(db.Model, fsqla.FsUserMixin):
     birth_date = db.Column(db.Date, nullable=True)
     resume_file = db.Column(db.LargeBinary, nullable=True)
     resume_blob = db.Column(db.LargeBinary, nullable=True)
-    skills_json = db.Column(db.Text, nullable=True)  
+    skills_json = db.Column(db.Text, nullable=True)
     education_json = db.Column(db.Text, nullable=True)
     experience_json = db.Column(db.Text, nullable=True)
-    chat_history = db.Column(db.Text, nullable=True)  
+    chat_history = db.Column(db.Text, nullable=True)
     is_verified = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
     # association objects for skills (stores proficiency and years_experience)
@@ -132,7 +132,7 @@ class User(db.Model, fsqla.FsUserMixin):
     def is_super_admin(self):
         """Check if user is hr"""
         return self.has_role('hr')
-    
+
 
 class Admin(db.Model):
     """User model with authentication support"""
@@ -146,17 +146,17 @@ class Admin(db.Model):
     employee_id = db.Column(db.String(50), unique=True, nullable=True)
     job_title = db.Column(db.String(120), nullable=True)
     department = db.Column(db.String(120), nullable=True)
-    manager_id = db.Column(db.Integer, nullable=True)  
+    manager_id = db.Column(db.Integer, nullable=True)
     team_number = db.Column(db.String(50), nullable=True)
     employment_role = db.Column(db.String(20), nullable=False, default='employee')
     hire_date = db.Column(db.Date, nullable=True)
     birth_date = db.Column(db.Date, nullable=True)
     resume_file = db.Column(db.LargeBinary, nullable=True)
     resume_blob = db.Column(db.LargeBinary, nullable=True)
-    skills_json = db.Column(db.Text, nullable=True)  
+    skills_json = db.Column(db.Text, nullable=True)
     education_json = db.Column(db.Text, nullable=True)
     experience_json = db.Column(db.Text, nullable=True)
-    chat_history = db.Column(db.Text, nullable=True)  
+    chat_history = db.Column(db.Text, nullable=True)
     is_verified = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
     def __repr__(self):
@@ -193,7 +193,7 @@ class Admin(db.Model):
             'created_at': getattr(self, 'create_datetime', None).isoformat() if getattr(self, 'create_datetime', None) else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
-    
+
     def has_role(self, role_name):
         """Check if user has specific role"""
         return any(role.name == role_name for role in getattr(self, 'roles', []))
@@ -205,7 +205,7 @@ class Admin(db.Model):
     def is_super_admin(self):
         """Check if user is hr"""
         return self.has_role('hr')
-    
+
 class SuperAdmin(db.Model):
     """User model with authentication support"""
     # keep a conventional lowercase table name
@@ -247,7 +247,7 @@ class SuperAdmin(db.Model):
     def is_super_admin(self):
         """Check if user is hr"""
         return self.has_role('hr')
-    
+
 
 class UserSkill(db.Model):
     __tablename__ = 'user_skill'
@@ -863,4 +863,22 @@ class AnonymousFeedback(db.Model):
 
     def __repr__(self):
         return f'<AnonymousFeedback {self.id}>'
+
+
+class AIUsage(db.Model):
+    __tablename__ = 'ai_usage'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    day = db.Column(db.Date, nullable=False, default=date.today)
+    count = db.Column(db.Integer, nullable=False, default=1)
+
+    user = db.relationship('User', backref=db.backref('ai_usages', lazy='dynamic'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'day': self.day.isoformat() if self.day else None,
+            'count': self.count,
+        }
 
