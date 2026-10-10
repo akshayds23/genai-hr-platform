@@ -8,23 +8,20 @@ an employee resigns and must be completed by various roles (HR, admin,
 IT, etc.) before the process is considered complete.
 """
 
-from datetime import datetime, date
-from typing import List, Optional
+from datetime import date, datetime
 
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, Response, jsonify, request
 from flask_security import auth_required, current_user
 
-from app.models.models import db, OffboardingTask, User, LeaveRequest, Role, GeneratedLetter, LetterTemplate
-from app.services.notifications import determine_manager_ids, notify_users
-from app.services.offboarding import start_offboarding_for_user, generate_offboarding_letter
-
+from app.models.models import GeneratedLetter, LeaveRequest, OffboardingTask, User, db
+from app.services.offboarding import generate_offboarding_letter, start_offboarding_for_user
 
 offboarding_bp = Blueprint('offboarding', __name__)
 
 
 # Default tasks generated for every offboarding event. These tasks represent
 # the responsibilities of different departments to ensure a smooth exit.
-DEFAULT_OFFBOARDING_TASKS: List[dict] = [
+DEFAULT_OFFBOARDING_TASKS: list[dict] = [
     {
         'assignee_role': 'manager',
         'description': 'Collect company assets (laptop, ID card, etc.)',
@@ -47,12 +44,12 @@ def _is_admin_or_manager(user: User) -> bool:
     return (getattr(user, 'employment_role', '') or '').lower() == 'manager'
 
 
-def _normalize_status(value: Optional[str]) -> str:
+def _normalize_status(value: str | None) -> str:
     """Normalize a status string for comparison."""
     return (value or '').strip().lower()
 
 
-def _find_incomplete_predecessor(task: OffboardingTask) -> Optional[OffboardingTask]:
+def _find_incomplete_predecessor(task: OffboardingTask) -> OffboardingTask | None:
     """
     Return the earliest prior task for the same user that is not completed.
 
@@ -69,7 +66,7 @@ def _find_incomplete_predecessor(task: OffboardingTask) -> Optional[OffboardingT
     )
 
 
-def _find_other_in_progress_task(task: OffboardingTask) -> Optional[OffboardingTask]:
+def _find_other_in_progress_task(task: OffboardingTask) -> OffboardingTask | None:
     """Return another task for the same user that is currently running."""
     return (
         OffboardingTask.query
@@ -80,7 +77,7 @@ def _find_other_in_progress_task(task: OffboardingTask) -> Optional[OffboardingT
     )
 
 
-def _validate_status_transition(task: OffboardingTask, new_status: str) -> Optional[str]:
+def _validate_status_transition(task: OffboardingTask, new_status: str) -> str | None:
     """Enforce sequential task progression rules."""
     current = _normalize_status(task.status)
     if new_status == current:
@@ -231,25 +228,25 @@ def reopen_offboarding_task(task_id: int):
         return jsonify({'error': 'Only managers or administrators may reopen offboarding tasks.'}), 403
 
     task = OffboardingTask.query.get_or_404(task_id)
-    
+
     # Only allow reopening completed tasks
     if task.status != 'completed':
         return jsonify({'error': 'Only completed tasks can be reopened.'}), 400
-    
+
     # Reopen the task by setting it to in_progress and clearing completion timestamp
     task.status = 'in_progress'
     task.completed_at = None
-    
+
     # If this task completion had deactivated the user, reactivate them
     if _should_deactivate_user_on_completion(task):
         user = User.query.get(task.user_id)
         if user and not user.active:
             user.active = True
             db.session.add(user)
-    
+
     db.session.add(task)
     db.session.commit()
-    
+
     return jsonify({'task': task.to_dict(), 'message': 'Task reopened successfully'})
 
 
@@ -389,7 +386,7 @@ def list_generated_letters():
         target_user = current_user
 
     letters = GeneratedLetter.query.filter(GeneratedLetter.user_id == target_user.id).order_by(GeneratedLetter.created_at.desc()).limit(50).all()
-    return jsonify({'letters': [{'id': l.id, 'template_id': l.template_id, 'created_at': l.created_at.isoformat(), 'snippet': (l.content or '')[:240]} for l in letters]})
+    return jsonify({'letters': [{'id': letter.id, 'template_id': letter.template_id, 'created_at': letter.created_at.isoformat(), 'snippet': (letter.content or '')[:240]} for letter in letters]})
 
 
 
@@ -413,5 +410,5 @@ def download_generated_letter(letter_id: int):
     # Return plain text for now with attachment headers
     content = letter.content or ''
     resp = Response(content, mimetype='text/plain')
-    resp.headers.set('Content-Disposition', f'attachment', filename=f'letter_{letter.id}.txt')
+    resp.headers.set('Content-Disposition', 'attachment', filename=f'letter_{letter.id}.txt')
     return resp

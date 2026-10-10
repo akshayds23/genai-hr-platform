@@ -1,16 +1,9 @@
-from datetime import date, datetime
-from typing import List, Optional
+from datetime import date
 
-from app.models.models import db, OffboardingTask, LeaveRequest, User, LetterTemplate, GeneratedLetter
+from app.models.models import GeneratedLetter, LeaveRequest, LetterTemplate, OffboardingTask, User, db
 from app.services.notifications import determine_manager_ids, notify_users
 
-try:
-    import google.generativeai as genai  # type: ignore
-except Exception:
-    genai = None
-
-
-DEFAULT_FULL_OFFBOARDING_TASKS: List[dict] = [
+DEFAULT_FULL_OFFBOARDING_TASKS: list[dict] = [
     {'assignee_role': 'manager', 'description': 'Collect company assets (laptop, ID card, keys).'},
     {'assignee_role': 'it', 'description': 'Revoke system and email access and remove from groups.'},
     {'assignee_role': 'hr', 'description': 'Conduct exit interview and finalize paperwork.'},
@@ -19,7 +12,7 @@ DEFAULT_FULL_OFFBOARDING_TASKS: List[dict] = [
 ]
 
 
-def _create_leave_if_missing(user: User, final_day: date, reason: Optional[str] = None) -> LeaveRequest:
+def _create_leave_if_missing(user: User, final_day: date, reason: str | None = None) -> LeaveRequest:
     existing = (
         LeaveRequest.query
         .filter(LeaveRequest.user_id == user.id)
@@ -45,9 +38,9 @@ def _create_leave_if_missing(user: User, final_day: date, reason: Optional[str] 
 
 def start_offboarding_for_user(
     user: User,
-    final_day: Optional[date] = None,
-    initiator_id: Optional[int] = None,
-    reason: Optional[str] = None,
+    final_day: date | None = None,
+    initiator_id: int | None = None,
+    reason: str | None = None,
 ) -> dict:
     """
     Begin the offboarding workflow for a user.
@@ -63,7 +56,7 @@ def start_offboarding_for_user(
     leave = _create_leave_if_missing(user, final_day, reason=reason)
 
     # Create tasks
-    tasks: List[OffboardingTask] = []
+    tasks: list[OffboardingTask] = []
     for spec in DEFAULT_FULL_OFFBOARDING_TASKS:
         task = OffboardingTask(
             user_id=user.id,
@@ -139,31 +132,17 @@ def generate_offboarding_letter(user: User, template_name: str) -> GeneratedLett
 
     content = _render_template_placeholders(template.content, user)
 
-    # If genai is available, ask it to polish the letter (keep it short & formal)
-    if genai is not None:
-        try:
-            # create a polishing prompt
-            prompt = (
-                f"Polish and formalise the following HR letter. Preserve meaning, keep it concise:\n\n{content}\n\n"
-            )
-            # The library usage may vary; attempt a best-effort call
-            model = getattr(genai, 'get_model', lambda *a, **k: None)()
-            # fallback to a simple completion call if available
-            polished = None
-            if hasattr(genai, 'Client'):
-                client = genai.Client()
-                # best-effort; not all versions expose same API
-                response = client.generate_text(prompt)
-                polished = getattr(response, 'text', None) or str(response)
-            elif hasattr(genai, 'generate'):
-                resp = genai.generate(prompt)
-                polished = resp.get('candidates', [{}])[0].get('content')
-
-            if polished:
-                content = polished
-        except Exception:
-            # fall back to template content if genai call fails
-            pass
+    try:
+        from app.services.ai import generate_text
+        prompt = (
+            f"Polish and formalise the following HR letter. Preserve meaning, keep it concise:\n\n{content}\n\n"
+        )
+        polished = generate_text(prompt, max_tokens=1024)
+        if polished:
+            content = polished
+    except Exception:
+        # Fall back to template content if AI call fails or is unavailable
+        pass
 
     generated = GeneratedLetter(user_id=user.id, template_id=template.id, content=content)
     db.session.add(generated)

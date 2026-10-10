@@ -6,21 +6,19 @@ authenticated users can request a letter be generated for themselves using
 a predefined template.
 """
 
-from datetime import datetime
 from collections import defaultdict
-from flask import current_app
-from typing import Optional, Dict, Any
+from datetime import datetime
+from typing import Any
 
-from flask import Blueprint, jsonify, request, Response
+from flask import Blueprint, Response, current_app, jsonify, request
 from flask_security import auth_required, current_user, roles_required
 
-from app.models.models import db, LetterTemplate, GeneratedLetter, User, OffboardingTask
-
+from app.models.models import GeneratedLetter, LetterTemplate, OffboardingTask, User, db
 
 letters_bp = Blueprint('letters', __name__)
 
 
-def _render_template(template: LetterTemplate, user: User, extra_context: Optional[Dict[str, Any]] = None) -> str:
+def _render_template(template: LetterTemplate, user: User, extra_context: dict[str, Any] | None = None) -> str:
 
     exit_date = ''
     try:
@@ -48,7 +46,7 @@ def _render_template(template: LetterTemplate, user: User, extra_context: Option
     }
     if extra_context:
         context.update(extra_context)
-  
+
     if 'company_name' not in context or not context.get('company_name'):
         cfg_name = None
         try:
@@ -69,7 +67,7 @@ def _render_template(template: LetterTemplate, user: User, extra_context: Option
         return template.content.format_map(safe_map)
     except Exception as exc:
         # Any other formatting error -> surface as a ValueError for the API
-        raise ValueError(f'Failed to render template: {str(exc)}')
+        raise ValueError(f'Failed to render template: {exc!s}')
 
 
 @letters_bp.route('/letters/templates', methods=['GET'])
@@ -164,8 +162,6 @@ def generate_letter():
         tpl_id = int(template_id)
     except (TypeError, ValueError):
         return jsonify({'error': 'template_id must be an integer'}), 400
-    template = LetterTemplate.query.get_or_404(tpl_id)
-
     target_user_id = data.get('user_id')
     if target_user_id:
         try:
@@ -178,6 +174,8 @@ def generate_letter():
         user = User.query.get_or_404(uid)
     else:
         user = current_user
+
+    template = LetterTemplate.query.get_or_404(tpl_id)
 
     variables = data.get('variables') or {}
     if not isinstance(variables, dict):
