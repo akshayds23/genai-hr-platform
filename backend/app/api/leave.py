@@ -1,9 +1,10 @@
-from datetime import datetime, date
+from datetime import date, datetime
+
 from flask import Blueprint, jsonify, request
 from flask_security import auth_required, current_user
 from sqlalchemy import func
 
-from app.models.models import db, LeaveRequest, User
+from app.models.models import LeaveRequest, User, db
 from app.services.leave_balance import (
     build_balance_snapshot,
     inclusive_day_count,

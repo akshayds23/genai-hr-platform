@@ -1,11 +1,9 @@
-from datetime import date, timedelta
-from typing import Optional, Tuple
+from datetime import date
 
 from flask import Blueprint, jsonify, request
 from flask_security import auth_required, current_user
 
 from app.models.models import User
-
 
 birthday_tracker_bp = Blueprint('birthday_tracker', __name__)
 
@@ -25,7 +23,7 @@ def _is_manager(user: User) -> bool:
     return (getattr(user, 'employment_role', '') or '').lower() == 'manager'
 
 
-def _display_name(user: Optional[User]) -> str:
+def _display_name(user: User | None) -> str:
     if not user:
         return 'Team member'
     parts = [user.first_name, user.last_name]
@@ -33,21 +31,21 @@ def _display_name(user: Optional[User]) -> str:
     return ' '.join(part for part in parts if part) or fallback
 
 
-def _clean_scope_param(raw: Optional[str]) -> Optional[str]:
+def _clean_scope_param(raw: str | None) -> str | None:
     if not raw:
         return None
     cleaned = raw.strip().lower()
     return cleaned or None
 
 
-def _clean_team_param(raw: Optional[str]) -> Optional[str]:
+def _clean_team_param(raw: str | None) -> str | None:
     if not raw:
         return None
     cleaned = raw.strip()
     return cleaned or None
 
 
-def _coerce_days(raw: Optional[str], default: int) -> int:
+def _coerce_days(raw: str | None, default: int) -> int:
     try:
         if raw is None:
             raise ValueError
@@ -57,7 +55,7 @@ def _coerce_days(raw: Optional[str], default: int) -> int:
     return max(1, min(MAX_LOOKAHEAD_DAYS, value))
 
 
-def _resolve_user_scope(scope_param: Optional[str], team_param: Optional[str]) -> Tuple:
+def _resolve_user_scope(scope_param: str | None, team_param: str | None) -> tuple:
     scope = _clean_scope_param(scope_param)
     team_number = _clean_team_param(team_param) or _clean_team_param(getattr(current_user, 'team_number', None))
 

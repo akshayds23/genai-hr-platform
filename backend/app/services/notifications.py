@@ -1,14 +1,13 @@
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Iterable, Optional, List
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta, timezone
 
 from app.models.models import Notification, User, db
-
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
 
-def _encode_metadata(metadata: Optional[dict]) -> Optional[str]:
+def _encode_metadata(metadata: dict | None) -> str | None:
     if metadata is None:
         return None
     try:
@@ -17,7 +16,7 @@ def _encode_metadata(metadata: Optional[dict]) -> Optional[str]:
         return None
 
 
-def _to_ist_iso(dt: Optional[datetime]) -> Optional[str]:
+def _to_ist_iso(dt: datetime | None) -> str | None:
     """
     Convert a naive/UTC datetime to an ISO string in Asia/Kolkata.
 
@@ -28,7 +27,7 @@ def _to_ist_iso(dt: Optional[datetime]) -> Optional[str]:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     try:
         return dt.astimezone(IST).isoformat()
     except (OverflowError, ValueError):
@@ -38,11 +37,11 @@ def _to_ist_iso(dt: Optional[datetime]) -> Optional[str]:
 
 def create_notification(
     *,
-    user_id: Optional[int],
+    user_id: int | None,
     category: str,
     title: str,
-    message: Optional[str] = None,
-    metadata: Optional[dict] = None,
+    message: str | None = None,
+    metadata: dict | None = None,
     commit: bool = False,
 ) -> Notification:
     notification = Notification(
@@ -63,8 +62,8 @@ def notify_users(
     *,
     category: str,
     title: str,
-    message: Optional[str] = None,
-    metadata: Optional[dict] = None,
+    message: str | None = None,
+    metadata: dict | None = None,
     commit: bool = False,
 ) -> list[Notification]:
     notifications: list[Notification] = []
@@ -84,34 +83,7 @@ def notify_users(
     return notifications
 
 
-def determine_manager_ids(user: User) -> list[int]:
-    """
-    Resolve the appropriate escalation targets for workflow notifications.
-
-    Employees route to their direct manager or team managers, falling back
-    to super admins. Managers route directly to HR (super admins) so their
-    own requests do not bounce back to themselves.
-    """
-
-    def _active_users_with_role(role_name: str) -> list[User]:
-        return (
-            User.query
-            .filter(User.active.is_(True))
-            .filter(User.roles.any(name=role_name))
-            .all()
-        )
-
-    role = (getattr(user, 'employment_role', '') or '').lower()
-    if role == 'manager':
-        recipients = [candidate.id for candidate in _active_users_with_role('hr') if candidate.id != user.id]
-        if recipients:
-            return recipients
-        # Fallback: escalate to managers if no hr exists.
-        recipients = [candidate.id for candidate in _active_users_with_role('manager') if candidate.id != user.id]
-        if recipients:
-            return recipients
-
-def _active_users_with_role(role_name: str, exclude_id: Optional[int] = None) -> List[User]:
+def _active_users_with_role(role_name: str, exclude_id: int | None = None) -> list[User]:
     query = (
         User.query
         .filter(User.active.is_(True))
@@ -121,7 +93,7 @@ def _active_users_with_role(role_name: str, exclude_id: Optional[int] = None) ->
         query = query.filter(User.id != exclude_id)
     return query.all()
 
-def determine_hr_user_ids(exclude_id: Optional[int] = None) -> list[int]:
+def determine_hr_user_ids(exclude_id: int | None = None) -> list[int]:
     return [user.id for user in _active_users_with_role('hr', exclude_id=exclude_id)]
 
 def determine_manager_ids(user: User) -> list[int]:
