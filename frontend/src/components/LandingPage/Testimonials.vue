@@ -2,20 +2,16 @@
 <script setup>
 /* global defineOptions */
 defineOptions({ name: 'LandingPageTestimonials' })
-import person1 from '@/assets/landing/people/person1.jpg'
-import person2 from '@/assets/landing/people/person2.jpg'
-import person3 from '@/assets/landing/people/person3.jpg'
-import person4 from '@/assets/landing/people/person4.jpg'
 
 const baseTestimonials = [
-  { name: 'Aarav Verma', role: 'People Ops Lead', quote: 'ALVEON keeps our onboarding and approvals in one smooth flow—no more chasing emails.', avatar: person1 },
-  { name: 'Ishita Rao', role: 'HR Analyst', quote: 'Dashboards finally match how we work. Managers actually check their numbers now.', avatar: person2 },
-  { name: 'Rohan Mehta', role: 'Payroll Manager', quote: 'Payroll and attendance stay in sync. I close faster with fewer queries.', avatar: person3 },
-  { name: 'Neha Kulkarni', role: 'Talent Partner', quote: 'Offers and letters feel polished. Candidates notice the difference.', avatar: person4 },
-  { name: 'Vikram Singh', role: 'Engineering Manager', quote: 'Approvals are predictable and fast. My team spends time building, not waiting.', avatar: person1 },
-  { name: 'Kriti Desai', role: 'HRBP', quote: 'The workflows are humane and fast. Feedback loops are finally easy.', avatar: person2 },
-  { name: 'Arjun Iyer', role: 'COO', quote: 'Live people metrics without spreadsheets. It changes how we plan.', avatar: person3 },
-  { name: 'Sanya Kapoor', role: 'L&D Lead', quote: 'Templates + automation = less admin, more coaching.', avatar: person4 },
+  { name: 'Aarav Verma', initials: 'AV', bg: 'bg-indigo-600', role: 'People Ops Lead', quote: 'ALVEON keeps our onboarding and approvals in one smooth flow with no chasing emails.' },
+  { name: 'Ishita Rao', initials: 'IR', bg: 'bg-emerald-600', role: 'HR Analyst', quote: 'Dashboards match how we work. Managers regularly check their numbers now.' },
+  { name: 'Rohan Mehta', initials: 'RM', bg: 'bg-blue-600', role: 'Payroll Manager', quote: 'Payroll and attendance stay in sync. Fast closures with fewer queries.' },
+  { name: 'Neha Kulkarni', initials: 'NK', bg: 'bg-purple-600', role: 'Talent Partner', quote: 'Offers and letters feel polished. Candidates notice the difference.' },
+  { name: 'Vikram Singh', initials: 'VS', bg: 'bg-amber-600', role: 'Engineering Manager', quote: 'Approvals are predictable and fast. My team spends time building, not waiting.' },
+  { name: 'Kriti Desai', initials: 'KD', bg: 'bg-teal-600', role: 'HRBP', quote: 'The workflows are humane and fast. Feedback loops are finally easy.' },
+  { name: 'Arjun Iyer', initials: 'AI', bg: 'bg-cyan-600', role: 'COO', quote: 'Live people metrics without spreadsheets. It changes how we plan.' },
+  { name: 'Sanya Kapoor', initials: 'SK', bg: 'bg-rose-600', role: 'L&D Lead', quote: 'Templates and automation lead to less admin and more coaching.' },
 ]
 
 const marqueeItems = [...baseTestimonials, ...baseTestimonials] // duplicate for seamless loop
@@ -37,7 +33,12 @@ const marqueeItems = [...baseTestimonials, ...baseTestimonials] // duplicate for
               :key="idx"
               class="testimonial-chip"
             >
-              <img :src="item.avatar" :alt="item.name" class="w-12 h-12 rounded-full object-cover border border-slate-200" />
+              <div
+                class="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm"
+                :class="item.bg"
+              >
+                {{ item.initials }}
+              </div>
               <div class="flex-1 min-w-0">
                 <p class="font-semibold text-[#0f2738] truncate">{{ item.name }}</p>
                 <p class="text-xs text-slate-500 truncate">{{ item.role }}</p>
