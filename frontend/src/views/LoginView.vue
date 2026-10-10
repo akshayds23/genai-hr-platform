@@ -100,11 +100,46 @@
               {{ isLoading ? 'Signing in…' : 'Login to App' }}
             </button>
 
+            <div v-if="isDemoMode" class="demo-section">
+              <div class="demo-divider">
+                <span>Or try a demo account</span>
+              </div>
+              <div class="demo-buttons">
+                <button
+                  type="button"
+                  class="demo-btn"
+                  :disabled="isLoading"
+                  @click="loginAsDemo('hr')"
+                >
+                  Try as HR
+                </button>
+                <button
+                  type="button"
+                  class="demo-btn"
+                  :disabled="isLoading"
+                  @click="loginAsDemo('manager')"
+                >
+                  Try as Manager
+                </button>
+                <button
+                  type="button"
+                  class="demo-btn"
+                  :disabled="isLoading"
+                  @click="loginAsDemo('employee')"
+                >
+                  Try as Employee
+                </button>
+              </div>
+            </div>
+
             <div class="helper-row">
-          
               <router-link to="/" class="link-minor">Back to Home</router-link>
             </div>
           </form>
+          <div v-if="isWakingUp" class="wake-banner" role="status">
+            <span class="spinner-small" aria-hidden="true"></span>
+            <span>Waking up the demo server, this can take up to a minute...</span>
+          </div>
         </div>
       </div>
     </div>
@@ -112,7 +147,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import BrandLogo from '@/components/BrandLogo.vue'
@@ -130,12 +165,18 @@ const roleOptions = [
 ]
 const selectedRole = ref(roleOptions[0].value)
 
+const isDemoMode = computed(() => {
+  return process.env.VUE_APP_DEMO_MODE === 'true'
+})
+
+const isWakingUp = ref(false)
+
 const API_BASE_URL = (process.env.VUE_APP_API_BASE_URL || '/api').replace(/\/$/, '')
 const API_URL = `${API_BASE_URL}/login`
 const ROLE_STORAGE_KEY = 'activeUserRole'
 
 // --- Illustration & tilt state for interactivity ---
-const employeeSrc = new URL('@/assets/Login.png', import.meta.url).href // put your image here
+const employeeSrc = new URL('@/assets/Login.svg', import.meta.url).href
 const bob = ref(0)
 const tiltX = ref(0)
 const tiltY = ref(0)
@@ -150,6 +191,15 @@ onMounted(() => {
     t += 0.04
     bob.value = Math.sin(t) * 6 // vertical bob amplitude
   }, 16)
+
+  // Wake-up check for cold start
+  const timer = setTimeout(() => {
+    isWakingUp.value = true
+  }, 3000)
+  axios.get(`${API_BASE_URL}/health`).catch(() => {}).finally(() => {
+    clearTimeout(timer)
+    isWakingUp.value = false
+  })
 })
 onBeforeUnmount(() => {
   clearInterval(bobInterval)
@@ -237,6 +287,23 @@ const handleLogin = async () => {
   } finally {
     isLoading.value = false
   }
+}
+
+const loginAsDemo = async (role) => {
+  if (role === 'hr') {
+    email.value = 'hr@example.com'
+    password.value = 'hr123'
+    selectedRole.value = 'hr'
+  } else if (role === 'manager') {
+    email.value = 'manager@example.com'
+    password.value = 'manager123'
+    selectedRole.value = 'manager'
+  } else if (role === 'employee') {
+    email.value = 'employee@example.com'
+    password.value = 'employee123'
+    selectedRole.value = 'employee'
+  }
+  await handleLogin()
 }
 </script>
 
@@ -442,6 +509,73 @@ select.input option{ background:#fff; color:#08322a; }
   animation: spin .9s linear infinite;
 }
 @keyframes spin{ to { transform: rotate(360deg); } }
+
+.wake-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(46, 167, 138, 0.15);
+  border: 1px solid rgba(46, 167, 138, 0.4);
+  color: #a7f3d0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  margin-top: 14px;
+}
+.spinner-small {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(167, 243, 208, 0.35);
+  border-top-color: #a7f3d0;
+  animation: spin .9s linear infinite;
+}
+.demo-section {
+  margin-top: 14px;
+}
+.demo-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: rgba(244, 251, 246, 0.5);
+  font-size: 0.78rem;
+  margin-bottom: 10px;
+}
+.demo-divider::before,
+.demo-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.demo-divider span {
+  padding: 0 8px;
+}
+.demo-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.demo-btn {
+  padding: 8px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #eaf6f1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.demo-btn:hover:not(:disabled) {
+  background: rgba(46, 167, 138, 0.25);
+  border-color: rgba(46, 167, 138, 0.5);
+  transform: translateY(-1px);
+}
+.demo-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* helper row */
 .helper-row{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:12px; }
