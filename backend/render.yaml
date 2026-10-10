@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: genai-hr-platform-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: FLASK_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DEMO_MODE
+        value: "true"
+      - key: AI_DAILY_LIMIT
+        value: "20"
+      - key: AI_GLOBAL_DAILY_LIMIT
+        value: "300"
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SECURITY_PASSWORD_SALT
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: GEMINI_EMBED_MODEL
+        value: gemini-embedding-001
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
