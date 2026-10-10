@@ -5,8 +5,7 @@
     "version": "1.0.0",
     "description": "**Human Resource Management System Backend API**\n\nA comprehensive REST API for managing HR operations including employee management, leave tracking, \nperformance monitoring, offboarding workflows, and administrative tasks. This API serves as the \nbackend for a full-featured HRM system supporting multiple user roles (Employee, Manager, HR).\n\n**Authentication:** All endpoints (except login, register, and debug) require Bearer token authentication.\nObtain a token by calling the `/api/login` endpoint.\n\n**Key Features:**\n- Employee self-service portal\n- Leave management and approval workflows  \n- HR chatbot and FAQ system\n- Resume management and candidate matching\n- Offboarding automation\n- Birthday tracking and event management\n- Notification and announcement system\n- Analytics and reporting\n",
     "contact": {
-      "name": "HRM Development Team",
-      "url": "https://github.com/Rishurajgautam24/soft-engg-project-sep-2025-se-SEP-24"
+      "name": "HRM Development Team"
     },
     "license": {
       "name": "MIT",
@@ -15,8 +14,12 @@
   },
   "servers": [
     {
-      "url": "http://localhost:5000",
+      "url": "http://127.0.0.1:5000",
       "description": "Local development server (Flask backend)"
+    },
+    {
+      "url": "http://localhost:5000",
+      "description": "Local development server (alternative)"
     }
   ],
   "security": [
