@@ -18,7 +18,7 @@
                    bg-emerald-600 text-2xl shadow-md text-white
                    ring-2 ring-emerald-300/70"
           >
-            <!-- 🤖 -->
+            <span class="text-lg font-semibold">A</span>
           </div>
           <span
             class="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full

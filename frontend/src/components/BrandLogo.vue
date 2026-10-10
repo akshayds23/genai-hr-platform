@@ -63,7 +63,6 @@ const brandClasses = computed(() => ({
   display: block;
   width: 52px;
   height: 52px;
-  filter: brightness(0);
 }
 
 .brand-logo--sm .brand-logo__icon {
@@ -92,7 +91,6 @@ const brandClasses = computed(() => ({
 }
 
 .brand-logo--muted .brand-logo__icon {
-  filter: brightness(0) invert(1);
   opacity: 0.92;
 }
 </style>

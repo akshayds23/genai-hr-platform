@@ -15,7 +15,7 @@
             class="flex h-12 w-12 items-center justify-center rounded-2xl 
                    bg-emerald-600 text-2xl text-white shadow-md ring-2 ring-emerald-300/60"
           >
-            <!-- 🤖 -->
+            <span class="text-lg font-semibold">A</span>
           </div>
           <span
             class="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full 
