@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from datetime import date
-from typing import Iterable, Optional
 
 from app.models.models import LeaveRequest
 
@@ -27,7 +27,7 @@ def used_leave_days_for_year(
     user_id: int,
     year: int,
     *,
-    statuses: Optional[Iterable[str]] = None,
+    statuses: Iterable[str] | None = None,
 ) -> int:
     status_filter = {status.lower() for status in (statuses or BALANCE_STATUSES)}
     year_start = date(year, 1, 1)
@@ -54,26 +54,25 @@ def remaining_leave_days(
     year: int,
     *,
     allowance_days: int = DEFAULT_ALLOWANCE_DAYS,
-    statuses: Optional[Iterable[str]] = None,
+    statuses: Iterable[str] | None = None,
 ) -> int:
     used_days = used_leave_days_for_year(user_id, year, statuses=statuses)
     remaining = allowance_days - used_days
-    return remaining if remaining > 0 else 0
+    return max(0, remaining)
 
 
 def build_balance_snapshot(
     user_id: int,
     *,
-    reference_date: Optional[date] = None,
+    reference_date: date | None = None,
     allowance_days: int = DEFAULT_ALLOWANCE_DAYS,
-    statuses: Optional[Iterable[str]] = None,
+    statuses: Iterable[str] | None = None,
 ) -> dict:
     reference_date = reference_date or date.today()
     year = reference_date.year
     used_days = used_leave_days_for_year(user_id, year, statuses=statuses)
     remaining_days = allowance_days - used_days
-    if remaining_days < 0:
-        remaining_days = 0
+    remaining_days = max(remaining_days, 0)
     return {
         'year': year,
         'allowance_days': allowance_days,

@@ -1,29 +1,21 @@
 import json
 from datetime import date, datetime, timedelta
-from typing import Optional
 
-from flask import Blueprint, jsonify, request, current_app
-from flask_security import auth_required, current_user
 from sqlalchemy import func, or_
 
-from app.api.genai.B_HRchatbot import hr_chatbot_service
 from app.models.models import (
-    AuditLog,
     Conversation,
+    Experience,
     LeaveRequest,
     Message,
     ProjectAnnouncement,
     Team,
     TeamEvent,
     User,
-    Experience,
     db,
 )
 from app.services.leave_balance import build_balance_snapshot
 from app.services.notifications import recent_notifications_for_user, serialize_notification
-
-
-employee_dashboard_bp = Blueprint('employee_dashboard', __name__)
 
 ANNUAL_LEAVE_ALLOWANCE = 20
 CAREER_TARGET_SKILLS = 8
@@ -39,7 +31,7 @@ MAX_TEAM_BIRTHDAY_LOOKAHEAD = 90
 MAX_PROJECT_ASSIGNMENTS = 6
 
 
-def _safe_parse_json(raw_value):
+def safe_parse_json(raw_value):
     if not raw_value:
         return None
     try:
@@ -48,7 +40,7 @@ def _safe_parse_json(raw_value):
         return None
 
 
-def _truncate(text: str, max_length: int = MAX_NOTIFICATION_DETAILS_LEN) -> str:
+def truncate(text: str, max_length: int = MAX_NOTIFICATION_DETAILS_LEN) -> str:
     if not text:
         return ''
     text = text.strip()
@@ -57,7 +49,7 @@ def _truncate(text: str, max_length: int = MAX_NOTIFICATION_DETAILS_LEN) -> str:
     return text[: max_length - 1].rstrip() + '...'
 
 
-def _safe_next_birthday(birth_date: date, today: date) -> date:
+def safe_next_birthday(birth_date: date, today: date) -> date:
     try:
         candidate = date(today.year, birth_date.month, birth_date.day)
     except ValueError:
@@ -72,7 +64,7 @@ def _safe_next_birthday(birth_date: date, today: date) -> date:
     return candidate
 
 
-def _display_name(user: Optional[User]) -> str:
+def display_name(user: User | None) -> str:
     if not user:
         return 'Team member'
     parts = [user.first_name, user.last_name]
@@ -80,7 +72,7 @@ def _display_name(user: Optional[User]) -> str:
     return ' '.join(part for part in parts if part) or fallback
 
 
-def _collect_team_birthdays(
+def collect_team_birthdays(
     user: User,
     window_days: int = DEFAULT_TEAM_BIRTHDAY_WINDOW,
     *,
@@ -111,13 +103,13 @@ def _collect_team_birthdays(
     for member in members:
         if not member.birth_date:
             continue
-        next_birthday = _safe_next_birthday(member.birth_date, today)
+        next_birthday = safe_next_birthday(member.birth_date, today)
         days_until = (next_birthday - today).days
         if days_until < 0 or days_until > window_days:
             continue
         upcoming.append({
             'employee_id': member.id,
-            'employee_name': _display_name(member),
+            'employee_name': display_name(member),
             'birth_date': member.birth_date.isoformat(),
             'next_birthday': next_birthday.isoformat(),
             'days_until': days_until,
@@ -134,7 +126,8 @@ def _collect_team_birthdays(
         'upcoming': upcoming,
     }
 
-def _leave_days_in_year(leave: LeaveRequest, year: int) -> int:
+
+def leave_days_in_year(leave: LeaveRequest, year: int) -> int:
     """Return the number of days of a leave request that fall within the given year."""
     if not leave.start_date or not leave.end_date:
         return 0
@@ -150,7 +143,7 @@ def _leave_days_in_year(leave: LeaveRequest, year: int) -> int:
     return (effective_end - effective_start).days + 1
 
 
-def _load_manager_project_announcement_for_employee(user: User) -> dict | None:
+def load_manager_project_announcement_for_employee(user: User) -> dict | None:
     manager_ids = []
 
     if getattr(user, 'manager_id', None):
@@ -184,7 +177,7 @@ def _load_manager_project_announcement_for_employee(user: User) -> dict | None:
     }
 
 
-def _format_event_time(event: TeamEvent) -> str:
+def format_event_time(event: TeamEvent) -> str:
     """Return a human readable range for the event timeframe."""
     start = event.start_datetime
     end = event.end_datetime
@@ -200,7 +193,7 @@ def _format_event_time(event: TeamEvent) -> str:
     return start.strftime('%b %d %I:%M %p')
 
 
-def _format_tenure_label(years: int, months: int) -> str:
+def format_tenure_label(years: int, months: int) -> str:
     if not years and not months:
         return 'Joined recently'
     parts = []
@@ -211,7 +204,7 @@ def _format_tenure_label(years: int, months: int) -> str:
     return ' '.join(parts)
 
 
-def _build_profile_snapshot(user: User, today: date) -> dict:
+def build_profile_snapshot(user: User, today: date) -> dict:
     full_name_parts = [part for part in (user.first_name, user.last_name) if part]
     full_name = ' '.join(full_name_parts) or (user.username or user.email)
 
@@ -251,7 +244,7 @@ def _build_profile_snapshot(user: User, today: date) -> dict:
         tenure = {
             'years': years,
             'months': months,
-            'label': _format_tenure_label(years, months)
+            'label': format_tenure_label(years, months)
         }
 
     return {
@@ -272,7 +265,7 @@ def _build_profile_snapshot(user: User, today: date) -> dict:
     }
 
 
-def _resolve_employee_team(user: User) -> Team | None:
+def resolve_employee_team(user: User) -> Team | None:
     if user.team_id:
         team = Team.query.get(user.team_id)
         if team:
@@ -284,10 +277,10 @@ def _resolve_employee_team(user: User) -> Team | None:
     return Team.query.filter_by(manager_id=user.id).first()
 
 
-def _build_team_overview(user: User) -> dict:
-    team = _resolve_employee_team(user)
+def build_team_overview(user: User) -> dict:
+    team = resolve_employee_team(user)
     team_label = (team.name if team else user.team_number) or 'Team'
-    
+
     base = {
         'team_number': team_label,
         'team_name': team_label,
@@ -333,7 +326,7 @@ def _build_team_overview(user: User) -> dict:
             'team_number': member.team_number,
         })
     birthday_window = DEFAULT_TEAM_BIRTHDAY_WINDOW
-    birthdays = _collect_team_birthdays(user, birthday_window, team=team)
+    birthdays = collect_team_birthdays(user, birthday_window, team=team)
 
     manager_user = None
     if team and team.manager_id:
@@ -372,9 +365,9 @@ def _build_team_overview(user: User) -> dict:
     }
 
 
-def _collect_project_assignments(user: User) -> dict:
+def collect_project_assignments(user: User) -> dict:
     raw_entries = []
-    parsed = _safe_parse_json(user.experience_json)
+    parsed = safe_parse_json(user.experience_json)
     if isinstance(parsed, list):
         for item in parsed:
             if isinstance(item, dict):
@@ -431,7 +424,7 @@ def _collect_project_assignments(user: User) -> dict:
     }
 
 
-def _build_leave_summary(user_id: int) -> dict:
+def build_leave_summary(user_id: int) -> dict:
     rows = (
         LeaveRequest.query
         .filter(LeaveRequest.user_id == user_id)
@@ -451,7 +444,7 @@ def _build_leave_summary(user_id: int) -> dict:
     }
 
 
-def _load_notifications(user_id: int) -> list[dict]:
+def load_notifications(user_id: int) -> list[dict]:
     notifications = recent_notifications_for_user(
         user_id,
         limit=MAX_NOTIFICATIONS,
@@ -463,7 +456,7 @@ def _load_notifications(user_id: int) -> list[dict]:
     ]
 
 
-def _build_chatbot_summary(user_id: int) -> dict:
+def build_chatbot_summary(user_id: int) -> dict:
     latest_conversation = (
         Conversation.query
         .filter(Conversation.user_id == user_id)
@@ -490,7 +483,7 @@ def _build_chatbot_summary(user_id: int) -> dict:
 
     snippet = None
     if last_message and last_message.content:
-        snippet = _truncate(last_message.content, MAX_CHATBOT_SNIPPET)
+        snippet = truncate(last_message.content, MAX_CHATBOT_SNIPPET)
 
     return {
         'has_history': True,
@@ -501,7 +494,7 @@ def _build_chatbot_summary(user_id: int) -> dict:
     }
 
 
-def _generate_career_tip(progress_pct: int, skills: list[dict]) -> str:
+def generate_career_tip(progress_pct: int, skills: list[dict]) -> str:
     if progress_pct >= 90:
         return "You're ready for the next milestone. Consider mentoring teammates."
     if progress_pct >= 60:
@@ -513,9 +506,9 @@ def _generate_career_tip(progress_pct: int, skills: list[dict]) -> str:
     return "Add your skills to receive personalized learning suggestions."
 
 
-def _collect_career_insights(user: User, progress_pct: int) -> dict:
+def collect_career_insights(user: User, progress_pct: int) -> dict:
     skills: list[dict] = []
-    parsed_skills = _safe_parse_json(user.skills_json)
+    parsed_skills = safe_parse_json(user.skills_json)
 
     if isinstance(parsed_skills, list):
         for item in parsed_skills:
@@ -550,11 +543,11 @@ def _collect_career_insights(user: User, progress_pct: int) -> dict:
         'progress_pct': progress_pct,
         'target_skills': CAREER_TARGET_SKILLS,
         'skills': skills,
-        'recommendation': _generate_career_tip(progress_pct, skills),
+        'recommendation': generate_career_tip(progress_pct, skills),
     }
 
 
-def _build_offboarding_snapshot(user: User) -> dict:
+def build_offboarding_snapshot(user: User) -> dict:
     if user.active:
         status = 'active'
         status_label = 'Active employee'
@@ -575,7 +568,7 @@ def _build_offboarding_snapshot(user: User) -> dict:
     }
 
 
-def _build_quick_actions(profile: dict, career: dict, chatbot: dict, offboarding: dict, leave_summary: dict, pending_requests: int) -> list[dict]:
+def build_quick_actions(profile: dict, career: dict, chatbot: dict, offboarding: dict, leave_summary: dict, pending_requests: int) -> list[dict]:
     leave_total = leave_summary.get('total', 0) if leave_summary else 0
     pending_label = f"{pending_requests} pending approval" if pending_requests else "Submit time-off request"
 
@@ -635,35 +628,18 @@ def _build_quick_actions(profile: dict, career: dict, chatbot: dict, offboarding
     ]
 
 
-def _generate_chatbot_response(message: str) -> str:
-    text = (message or '').strip().lower()
-    if not text:
-        return "I'm here whenever you need assistance with HR or policy questions."
-    if any(keyword in text for keyword in ('leave', 'vacation', 'time off', 'pto')):
-        return "Need time off? Submit a leave request and track approvals in the Leave Overview card."
-    if any(keyword in text for keyword in ('policy', 'handbook', 'guideline')):
-        return "You can browse HR policies in the knowledge base. Let me know the topic and I can point you to the right section."
-    if any(keyword in text for keyword in ('salary', 'payroll', 'compensation', 'payslip')):
-        return "Compensation queries are handled by Finance. I can log a ticket for you or connect you with the payroll team."
-    if any(keyword in text for keyword in ('feedback', 'complaint', 'issue', 'concern')):
-        return "Thanks for sharing. Please also consider submitting the feedback form so HR can follow up promptly."
-    if any(keyword in text for keyword in ('hello', 'hi', 'thanks', 'thank you')):
-        return "Happy to help! Ask me anything about leaves, policies, or HR contacts."
-    return "I'll record this for HR to review. If it's urgent, please raise a ticket or ping your HR partner directly."
-
-
-def _get_or_create_chat_conversation() -> Conversation:
+def get_or_create_chat_conversation(user_id: int) -> Conversation:
     cutoff = datetime.utcnow() - timedelta(hours=4)
     conversation = (
         Conversation.query
-        .filter(Conversation.user_id == current_user.id)
+        .filter(Conversation.user_id == user_id)
         .order_by(Conversation.started_at.desc())
         .first()
     )
 
     if not conversation or (conversation.ended_at and conversation.ended_at < cutoff):
         conversation = Conversation(
-            user_id=current_user.id,
+            user_id=user_id,
             title='HR Virtual Assistant',
             started_at=datetime.utcnow()
         )
@@ -673,54 +649,51 @@ def _get_or_create_chat_conversation() -> Conversation:
     return conversation
 
 
-def _get_chat_conversation(conversation_id: Optional[int]) -> Conversation:
+def get_chat_conversation(conversation_id: int | None, user_id: int) -> Conversation:
     if not conversation_id:
-        return _get_or_create_chat_conversation()
+        return get_or_create_chat_conversation(user_id)
     conversation = (
         Conversation.query.filter(
             Conversation.id == conversation_id,
-            Conversation.user_id == current_user.id,
+            Conversation.user_id == user_id,
         ).first()
     )
     if conversation:
         return conversation
-    return _get_or_create_chat_conversation()
+    return get_or_create_chat_conversation(user_id)
 
 
-@employee_dashboard_bp.route('/employee/dashboard', methods=['GET'])
-@auth_required()
-def get_employee_dashboard():
-    """Return aggregated dashboard data for the authenticated employee."""
+def build_employee_dashboard_data(user: User) -> dict:
     today = date.today()
 
     approved_leaves = (
         LeaveRequest.query
-        .filter_by(user_id=current_user.id, status='approved')
+        .filter_by(user_id=user.id, status='approved')
         .all()
     )
     approved_days_this_year = sum(
-        _leave_days_in_year(leave, today.year) for leave in approved_leaves
+        leave_days_in_year(leave, today.year) for leave in approved_leaves
     )
     remaining_leave = max(ANNUAL_LEAVE_ALLOWANCE - approved_days_this_year, 0)
 
     pending_requests = (
         LeaveRequest.query
-        .filter_by(user_id=current_user.id, status='pending')
+        .filter_by(user_id=user.id, status='pending')
         .count()
     )
 
     team_size = 1
     team_subtext = 'You are the only member assigned'
-    if current_user.team_number:
+    if user.team_number:
         team_members_query = (
             User.query
-            .filter(User.team_number == current_user.team_number)
+            .filter(User.team_number == user.team_number)
             .filter(User.active.is_(True))
         )
         team_size = team_members_query.count()
-        team_subtext = f"Team {current_user.team_number}"
+        team_subtext = f"Team {user.team_number}"
 
-    skills_count = current_user.user_skills.count()
+    skills_count = user.user_skills.count()
     career_progress_pct = 0
     if CAREER_TARGET_SKILLS > 0:
         career_progress_pct = min(
@@ -771,33 +744,32 @@ def get_employee_dashboard():
         }
         for leave in (
             LeaveRequest.query
-            .filter_by(user_id=current_user.id)
+            .filter_by(user_id=user.id)
             .order_by(LeaveRequest.created_at.desc())
             .limit(MAX_RECENT_LEAVES)
             .all()
         )
     ]
 
-    leave_summary = _build_leave_summary(current_user.id)
+    leave_summary = build_leave_summary(user.id)
 
     now = datetime.utcnow()
     event_query = TeamEvent.query.filter(TeamEvent.start_datetime >= now)
-    if current_user.team_number:
+    if user.team_number:
         event_query = event_query.filter(
             or_(
-                TeamEvent.team_number == current_user.team_number,
+                TeamEvent.team_number == user.team_number,
                 TeamEvent.team_number.is_(None)
             )
         )
-    else:
-        event_query = event_query.filter(TeamEvent.team_number.is_(None))
 
     upcoming_events = [
         {
             'id': event.id,
             'title': event.title,
             'description': event.description,
-            'time': _format_event_time(event),
+            'event_type': 'General',  # TeamEvent has no type column; the UI shows a label
+            'time': format_event_time(event),
             'month': event.start_datetime.strftime('%b').upper(),
             'date': event.start_datetime.strftime('%d'),
             'location': event.location,
@@ -813,17 +785,17 @@ def get_employee_dashboard():
         )
     ]
 
-    profile = _build_profile_snapshot(current_user, today)
-    team_overview = _build_team_overview(current_user)
-    career = _collect_career_insights(current_user, career_progress_pct)
-    notifications = _load_notifications(current_user.id)
-    chatbot = _build_chatbot_summary(current_user.id)
-    offboarding = _build_offboarding_snapshot(current_user)
-    quick_actions = _build_quick_actions(profile, career, chatbot, offboarding, leave_summary, pending_requests)
-    projects = _collect_project_assignments(current_user)
-    project_announcement = _load_manager_project_announcement_for_employee(current_user)
+    profile = build_profile_snapshot(user, today)
+    team_overview = build_team_overview(user)
+    career = collect_career_insights(user, career_progress_pct)
+    notifications = load_notifications(user.id)
+    chatbot = build_chatbot_summary(user.id)
+    offboarding = build_offboarding_snapshot(user)
+    quick_actions = build_quick_actions(profile, career, chatbot, offboarding, leave_summary, pending_requests)
+    projects = collect_project_assignments(user)
+    project_announcement = load_manager_project_announcement_for_employee(user)
 
-    return jsonify({
+    return {
         'profile': profile,
         'team_overview': team_overview,
         'project_assignments': projects,
@@ -836,174 +808,5 @@ def get_employee_dashboard():
         'notifications': notifications,
         'chatbot': chatbot,
         'offboarding': offboarding,
-        'career': career
-    })
-
-
-@employee_dashboard_bp.route('/employee/project-announcement', methods=['GET'])
-@auth_required()
-def get_employee_project_announcement():
-    """Return the manager project announcement for the current employee."""
-    announcement = _load_manager_project_announcement_for_employee(current_user)
-    return jsonify({'project_announcement': announcement})
-
-
-@employee_dashboard_bp.route('/employee/feedback', methods=['POST'])
-@auth_required()
-def submit_dashboard_feedback():
-    data = request.get_json() or {}
-
-    message = (data.get('message') or '').strip()
-    if not message:
-        return jsonify({'error': 'Feedback message is required'}), 400
-
-    subject = (data.get('subject') or 'General').strip()
-    rating = data.get('rating')
-
-    payload = {
-        'subject': subject,
-        'rating': rating,
-        'message': message,
+        'career': career,
     }
-
-    audit_entry = AuditLog(
-        actor_id=current_user.id,
-        action='feedback-submitted',
-        object_type='feedback',
-        object_id=str(current_user.id),
-        details=json.dumps(payload),
-    )
-    db.session.add(audit_entry)
-    db.session.commit()
-
-    return jsonify({'message': 'Thank you for sharing your feedback!'}), 200
-
-
-@employee_dashboard_bp.route('/employee/chatbot', methods=['POST'])
-@auth_required()
-def interact_with_chatbot():
-    data = request.get_json() or {}
-    message = (data.get('message') or '').strip()
-    if not message:
-        return jsonify({'error': 'Message is required'}), 400
-
-    conversation = _get_or_create_chat_conversation()
-
-    user_message = Message(
-        conversation_id=conversation.id,
-        user_id=current_user.id,
-        sender='user',
-        content=message,
-        created_at=datetime.utcnow()
-    )
-    db.session.add(user_message)
-
-    try:
-        rag_result = hr_chatbot_service.answer_question(
-            current_user,
-            message,
-            conversation,
-            auto_escalate=False,
-        )
-        response_text = rag_result.get('answer') or "I'm still looking into that and will follow up soon."
-        chatbot_status = rag_result.get('status')
-        knowledge_reference = rag_result.get('reference')
-        knowledge_source = rag_result.get('reference_source')
-        question_log_id = rag_result.get('question_log_id')
-    except Exception as error:  # pragma: no cover - defensive
-        current_app.logger.exception('HR chatbot failed to process query: {0}'.format(error))
-        response_text = (
-            "I ran into a technical issue while fetching the answer. "
-            "Please try again shortly or reach out to HR directly."
-        )
-        chatbot_status = 'error'
-        knowledge_reference = None
-        knowledge_source = None
-        question_log_id = None
-
-    assistant_message = Message(
-        conversation_id=conversation.id,
-        user_id=None,
-        sender='assistant',
-        content=response_text,
-        created_at=datetime.utcnow()
-    )
-    db.session.add(assistant_message)
-
-    conversation.ended_at = datetime.utcnow()
-    db.session.add(conversation)
-
-    db.session.commit()
-
-    return jsonify({
-        'conversation_id': conversation.id,
-        'response': response_text,
-        'status': chatbot_status,
-        'reference': knowledge_reference,
-        'reference_source': knowledge_source,
-        'question_log_id': question_log_id,
-        'messages': [
-            {
-                'sender': 'user',
-                'content': message,
-                'timestamp': user_message.created_at.isoformat(),
-            },
-            {
-                'sender': 'assistant',
-                'content': response_text,
-                'timestamp': assistant_message.created_at.isoformat(),
-            }
-        ]
-    }), 200
-
-
-@employee_dashboard_bp.route('/employee/chatbot/escalate', methods=['POST'])
-@auth_required()
-def escalate_chatbot_question():
-    payload = request.get_json() or {}
-    question = (payload.get('message') or '').strip()
-    conversation_id = payload.get('conversation_id')
-
-    if not question:
-        return jsonify({'error': 'Question is required'}), 400
-
-    conversation = _get_chat_conversation(conversation_id)
-
-    try:
-        log_entry = hr_chatbot_service.escalate_question(current_user, question, conversation)
-    except Exception as error:  # pragma: no cover - defensive
-        current_app.logger.exception('Unable to escalate chatbot question: %s', error)
-        return jsonify({'error': 'Failed to forward the question to HR.'}), 500
-
-    acknowledgement = (
-        "Thanks! I've sent this to HR for review. You'll receive a notification once someone responds."
-    )
-
-    assistant_message = Message(
-        conversation_id=conversation.id,
-        user_id=None,
-        sender='assistant',
-        content=acknowledgement,
-        created_at=datetime.utcnow(),
-    )
-    db.session.add(assistant_message)
-    conversation.ended_at = datetime.utcnow()
-    db.session.add(conversation)
-    db.session.commit()
-
-    return jsonify({
-        'conversation_id': conversation.id,
-        'response': acknowledgement,
-        'status': 'pending',
-        'question_log_id': log_entry.id,
-        'reference': None,
-        'reference_source': log_entry.source,
-        'messages': [
-            {
-                'sender': 'assistant',
-                'content': acknowledgement,
-                'timestamp': assistant_message.created_at.isoformat(),
-            }
-        ]
-    }), 200
-
