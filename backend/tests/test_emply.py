@@ -330,3 +330,24 @@ class TestEmployeeDashboardEdgeCases:
         
         assert "upcoming_events" in data
         assert isinstance(data["upcoming_events"], list)
+
+
+def test_dashboard_with_upcoming_team_event(app, client, employee_token):
+    """Regression: the demo seed adds team events; the dashboard must render them."""
+    from datetime import datetime, timedelta
+    from app.models.models import TeamEvent, db
+
+    with app.app_context():
+        event = TeamEvent(title="Quarterly town hall", start_datetime=datetime.utcnow() + timedelta(days=3))
+        db.session.add(event)
+        db.session.commit()
+        event_id = event.id
+    try:
+        response = client.get("/api/employee/dashboard", headers={"Authentication-Token": employee_token})
+        assert response.status_code == 200
+        titles = [e["title"] for e in response.json()["upcoming_events"]]
+        assert "Quarterly town hall" in titles
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(TeamEvent, event_id))
+            db.session.commit()
